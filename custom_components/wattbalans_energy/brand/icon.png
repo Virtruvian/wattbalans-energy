@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="WattBalans">
+  <rect width="256" height="256" rx="48" fill="#1f7a4d"/>
+  <path d="M52 70h34l20 88 22-72h28l22 72 20-88h34l-38 126h-31l-21-68-21 68H90z" fill="#ffffff"/>
+</svg>
