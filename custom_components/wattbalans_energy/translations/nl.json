@@ -1,0 +1,48 @@
+{
+  "title": "WattBalans Energy Management",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Selecteer onderdelen",
+        "description": "Kies welke onderdelen bij deze installatie aanwezig zijn.",
+        "data": {
+          "solar": "Zonnepanelen",
+          "grid": "Slimme meter / netaansluiting",
+          "battery": "Thuisbatterij",
+          "ev_charging": "EV-laadpunt",
+          "dynamic_tariff": "Dynamische energietarieven",
+          "controllable_loads": "Schakelbare verbruikers"
+        }
+      }
+    },
+    "abort": {
+      "already_configured": "WattBalans Energy Management is al geconfigureerd."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Onderdelen wijzigen",
+        "description": "Pas aan welke onderdelen door WattBalans worden gebruikt. De integratie wordt daarna automatisch herladen.",
+        "data": {
+          "solar": "Zonnepanelen",
+          "grid": "Slimme meter / netaansluiting",
+          "battery": "Thuisbatterij",
+          "ev_charging": "EV-laadpunt",
+          "dynamic_tariff": "Dynamische energietarieven",
+          "controllable_loads": "Schakelbare verbruikers"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "solar_module": {"name": "Zonnepanelen module", "state": {"enabled": "Ingeschakeld"}},
+      "grid_module": {"name": "Netaansluiting module", "state": {"enabled": "Ingeschakeld"}},
+      "battery_module": {"name": "Batterij module", "state": {"enabled": "Ingeschakeld"}},
+      "ev_charging_module": {"name": "EV-laden module", "state": {"enabled": "Ingeschakeld"}},
+      "dynamic_tariff_module": {"name": "Dynamisch tarief module", "state": {"enabled": "Ingeschakeld"}},
+      "controllable_loads_module": {"name": "Schakelbare verbruikers module", "state": {"enabled": "Ingeschakeld"}}
+    }
+  }
+}
