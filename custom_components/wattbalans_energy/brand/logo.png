@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="256" viewBox="0 0 512 256" role="img" aria-label="WattBalans Energy Management">
+  <rect width="512" height="256" rx="36" fill="#ffffff"/>
+  <rect x="24" y="24" width="208" height="208" rx="42" fill="#1f7a4d"/>
+  <path d="M58 72h30l18 84 20-68h25l20 68 18-84h30l-34 120h-28l-18-64-19 64H92z" fill="#ffffff"/>
+  <text x="260" y="118" font-family="Arial, sans-serif" font-size="42" font-weight="700" fill="#1f2937">WattBalans</text>
+  <text x="262" y="160" font-family="Arial, sans-serif" font-size="22" fill="#4b5563">Energy Management</text>
+</svg>
