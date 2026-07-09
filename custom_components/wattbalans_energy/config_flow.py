@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from typing import Any
 
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.const import UnitOfEnergy, UnitOfPower
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers import selector
+from homeassistant.helpers import entity_registry as er, selector
 
 from .const import (
     CONF_ENTITIES,
@@ -33,36 +35,26 @@ FEATURE_KEYS = (
     FEATURE_CONTROLLABLE_LOADS,
 )
 
-ENTITY_FIELDS: dict[str, tuple[str, ...]] = {
-    FEATURE_SOLAR: (
-        "solar_power_entity",
-        "solar_energy_today_entity",
-        "solar_energy_total_entity",
-    ),
-    FEATURE_GRID: (
-        "grid_power_entity",
-        "grid_import_energy_entity",
-        "grid_export_energy_entity",
-    ),
-    FEATURE_BATTERY: (
-        "battery_soc_entity",
-        "battery_power_entity",
-        "battery_energy_entity",
-    ),
-    FEATURE_EV_CHARGING: (
-        "ev_charging_power_entity",
-        "ev_charging_energy_entity",
-        "ev_charging_status_entity",
-    ),
-    FEATURE_DYNAMIC_TARIFF: (
-        "dynamic_tariff_price_entity",
-        "dynamic_tariff_next_price_entity",
-    ),
-    FEATURE_CONTROLLABLE_LOADS: (
-        "controllable_load_power_entity",
-        "controllable_load_switch_entity",
-    ),
+ENTITY_FIELDS: dict[str, str] = {
+    FEATURE_SOLAR: "solar_entities",
+    FEATURE_GRID: "grid_entities",
+    FEATURE_BATTERY: "battery_entities",
+    FEATURE_EV_CHARGING: "ev_charging_entities",
+    FEATURE_DYNAMIC_TARIFF: "dynamic_tariff_entities",
+    FEATURE_CONTROLLABLE_LOADS: "controllable_loads_entities",
 }
+
+_AUTO_DETECT_KEYWORDS: dict[str, tuple[str, ...]] = {
+    FEATURE_SOLAR: ("solar", "zonne", "pv", "panel", "omvormer", "inverter"),
+    FEATURE_GRID: ("grid", "net", "p1", "meter", "import", "export", "afname", "teruglever"),
+    FEATURE_BATTERY: ("battery", "batterij", "accu", "soc", "charge", "discharge"),
+    FEATURE_EV_CHARGING: ("ev", "laad", "charger", "charging", "auto"),
+    FEATURE_DYNAMIC_TARIFF: ("tariff", "tarief", "prijs", "price", "tibber", "dynamic"),
+    FEATURE_CONTROLLABLE_LOADS: ("plug", "stekker", "switch", "schakel", "load", "verbruiker"),
+}
+
+_POWER_UNITS = {UnitOfPower.WATT, UnitOfPower.KILO_WATT}
+_ENERGY_UNITS = {UnitOfEnergy.WATT_HOUR, UnitOfEnergy.KILO_WATT_HOUR}
 
 
 def _feature_schema(current: dict[str, bool]) -> vol.Schema:
@@ -80,7 +72,8 @@ def _feature_schema(current: dict[str, bool]) -> vol.Schema:
 
 def _entity_schema(
     enabled_features: dict[str, bool],
-    current_entities: dict[str, dict[str, str]],
+    current_entities: dict[str, list[str]],
+    auto_detected_entities: dict[str, list[str]],
 ) -> vol.Schema:
     """Build the entity selection schema for selected features."""
     schema: dict[vol.Optional, selector.EntitySelector] = {}
@@ -89,12 +82,16 @@ def _entity_schema(
         if not enabled_features.get(feature, False):
             continue
 
-        for field in ENTITY_FIELDS[feature]:
-            schema[
-                vol.Optional(field, default=current_entities.get(feature, {}).get(field, ""))
-            ] = selector.EntitySelector(
-                selector.EntitySelectorConfig(domain=["sensor", "binary_sensor", "switch"])
+        field = ENTITY_FIELDS[feature]
+        current = current_entities.get(feature)
+        default = current if current is not None else auto_detected_entities.get(feature, [])
+
+        schema[vol.Optional(field, default=default)] = selector.EntitySelector(
+            selector.EntitySelectorConfig(
+                domain=["sensor", "binary_sensor", "switch"],
+                multiple=True,
             )
+        )
 
     return vol.Schema(schema)
 
@@ -107,21 +104,17 @@ def _features_from_input(user_input: dict[str, Any]) -> dict[str, bool]:
 def _entities_from_input(
     enabled_features: dict[str, bool],
     user_input: dict[str, Any],
-) -> dict[str, dict[str, str]]:
+) -> dict[str, list[str]]:
     """Normalize selected Home Assistant entities from form input."""
-    entities: dict[str, dict[str, str]] = {}
+    entities: dict[str, list[str]] = {}
 
     for feature in FEATURE_KEYS:
         if not enabled_features.get(feature, False):
             continue
 
-        selected_entities = {
-            field: str(user_input[field])
-            for field in ENTITY_FIELDS[feature]
-            if user_input.get(field)
-        }
-        if selected_entities:
-            entities[feature] = selected_entities
+        selected = _normalize_entity_list(user_input.get(ENTITY_FIELDS[feature], []))
+        if selected:
+            entities[feature] = selected
 
     return entities
 
@@ -134,12 +127,128 @@ def _entry_features(config_entry: config_entries.ConfigEntry) -> dict[str, bool]
     )
 
 
-def _entry_entities(config_entry: config_entries.ConfigEntry) -> dict[str, dict[str, str]]:
+def _entry_entities(config_entry: config_entries.ConfigEntry) -> dict[str, list[str]]:
     """Return current entity options for an existing config entry."""
-    return config_entry.options.get(
+    stored_entities = config_entry.options.get(
         CONF_ENTITIES,
         config_entry.data.get(CONF_ENTITIES, {}),
     )
+    return _normalize_stored_entities(stored_entities)
+
+
+def _normalize_entity_list(value: Any) -> list[str]:
+    """Normalize selector output to a sorted unique list of entity IDs."""
+    if value is None or value == "":
+        return []
+    if isinstance(value, str):
+        values = [value]
+    else:
+        values = list(value)
+
+    return sorted({str(entity_id) for entity_id in values if entity_id})
+
+
+def _normalize_stored_entities(stored_entities: Any) -> dict[str, list[str]]:
+    """Normalize old and new entity storage formats."""
+    normalized: dict[str, list[str]] = {}
+
+    if not isinstance(stored_entities, dict):
+        return normalized
+
+    for feature, value in stored_entities.items():
+        if feature not in FEATURE_KEYS:
+            continue
+
+        if isinstance(value, dict):
+            entity_ids = _normalize_entity_list(value.values())
+        else:
+            entity_ids = _normalize_entity_list(value)
+
+        if entity_ids:
+            normalized[feature] = entity_ids
+
+    return normalized
+
+
+def _auto_detect_entities(hass: Any, enabled_features: dict[str, bool]) -> dict[str, list[str]]:
+    """Suggest entities for selected modules based on names, ids and units."""
+    registry = er.async_get(hass)
+    suggestions: dict[str, list[tuple[int, str]]] = {
+        feature: [] for feature in FEATURE_KEYS if enabled_features.get(feature, False)
+    }
+
+    for entity_entry in registry.entities.values():
+        entity_id = entity_entry.entity_id
+        if entity_entry.disabled_by or entity_entry.hidden_by:
+            continue
+        if not entity_id.startswith(("sensor.", "binary_sensor.", "switch.")):
+            continue
+
+        state = hass.states.get(entity_id)
+        haystack = _entity_haystack(entity_entry, state)
+
+        for feature in suggestions:
+            score = _auto_detect_score(feature, haystack, state)
+            if score > 0:
+                suggestions[feature].append((score, entity_id))
+
+    return {
+        feature: [entity_id for _score, entity_id in sorted(matches, reverse=True)[:10]]
+        for feature, matches in suggestions.items()
+        if matches
+    }
+
+
+def _entity_haystack(entity_entry: er.RegistryEntry, state: Any) -> str:
+    """Return searchable text for an entity."""
+    parts: list[str] = [entity_entry.entity_id]
+    if entity_entry.name:
+        parts.append(entity_entry.name)
+    if entity_entry.original_name:
+        parts.append(entity_entry.original_name)
+    if state is not None:
+        friendly_name = state.attributes.get("friendly_name")
+        device_class = state.attributes.get("device_class")
+        state_class = state.attributes.get("state_class")
+        unit = state.attributes.get("unit_of_measurement")
+        parts.extend(str(part) for part in (friendly_name, device_class, state_class, unit) if part)
+
+    return " ".join(parts).lower()
+
+
+def _auto_detect_score(feature: str, haystack: str, state: Any) -> int:
+    """Score how likely an entity belongs to a feature."""
+    score = sum(2 for keyword in _AUTO_DETECT_KEYWORDS[feature] if keyword in haystack)
+
+    if state is None:
+        return score
+
+    device_class = state.attributes.get("device_class")
+    unit = state.attributes.get("unit_of_measurement")
+
+    if device_class in {"power", "energy", "battery", "monetary"}:
+        score += 1
+    if unit in _POWER_UNITS or unit in _ENERGY_UNITS:
+        score += 1
+    if feature == FEATURE_BATTERY and device_class == "battery":
+        score += 4
+    if feature == FEATURE_DYNAMIC_TARIFF and device_class == "monetary":
+        score += 4
+    if feature == FEATURE_CONTROLLABLE_LOADS and haystack.startswith("switch."):
+        score += 2
+
+    return score
+
+
+def _merge_entity_defaults(
+    current_entities: dict[str, list[str]],
+    auto_detected_entities: dict[str, list[str]],
+) -> dict[str, list[str]]:
+    """Use configured entities first and auto-detected entities as fallback."""
+    return {
+        feature: current_entities.get(feature, auto_detected_entities.get(feature, []))
+        for feature in FEATURE_KEYS
+    }
 
 
 class WattBalansEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -181,6 +290,7 @@ class WattBalansEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         user_input: dict[str, Any] | None = None,
     ) -> FlowResult:
         """Handle optional entity selection."""
+        auto_detected = _auto_detect_entities(self.hass, self._features)
         if user_input is not None:
             return self.async_create_entry(
                 title="WattBalans Energy Management",
@@ -192,7 +302,10 @@ class WattBalansEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="entities",
-            data_schema=_entity_schema(self._features, {}),
+            data_schema=_entity_schema(self._features, {}, auto_detected),
+            description_placeholders={
+                "auto_detected_count": str(sum(len(value) for value in auto_detected.values()))
+            },
         )
 
 
@@ -223,6 +336,10 @@ class WattBalansEnergyOptionsFlow(config_entries.OptionsFlow):
         user_input: dict[str, Any] | None = None,
     ) -> FlowResult:
         """Manage WattBalans entity options."""
+        current_entities = _entry_entities(self._config_entry)
+        auto_detected = _auto_detect_entities(self.hass, self._features)
+        defaults = _merge_entity_defaults(current_entities, auto_detected)
+
         if user_input is not None:
             return self.async_create_entry(
                 title="",
@@ -236,6 +353,10 @@ class WattBalansEnergyOptionsFlow(config_entries.OptionsFlow):
             step_id="entities",
             data_schema=_entity_schema(
                 self._features,
-                _entry_entities(self._config_entry),
+                defaults,
+                auto_detected,
             ),
+            description_placeholders={
+                "auto_detected_count": str(sum(len(value) for value in auto_detected.values()))
+            },
         )
