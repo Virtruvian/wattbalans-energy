@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable
 from typing import Any
 
 import voluptuous as vol
@@ -52,6 +51,58 @@ _AUTO_DETECT_KEYWORDS: dict[str, tuple[str, ...]] = {
     FEATURE_DYNAMIC_TARIFF: ("tariff", "tarief", "prijs", "price", "tibber", "dynamic"),
     FEATURE_CONTROLLABLE_LOADS: ("plug", "stekker", "switch", "schakel", "load", "verbruiker"),
 }
+
+_AUTO_DETECT_MIN_SCORE: dict[str, int] = {
+    FEATURE_SOLAR: 4,
+    FEATURE_GRID: 4,
+    FEATURE_BATTERY: 5,
+    FEATURE_EV_CHARGING: 4,
+    FEATURE_DYNAMIC_TARIFF: 4,
+    FEATURE_CONTROLLABLE_LOADS: 4,
+}
+
+_BATTERY_STORAGE_KEYWORDS = (
+    "alpha ess",
+    "alpha_ess",
+    "alphaess",
+    "ess",
+    "zinvolt",
+    "thuisaccu",
+    "home battery",
+    "battery soc",
+    "batterij soc",
+    "soc",
+    "state of charge",
+    "charge",
+    "discharge",
+    "laadvermogen",
+    "ontlaadvermogen",
+    "battery power",
+    "accu vermogen",
+    "energy storage",
+    "omvormer",
+    "inverter",
+)
+
+_SMALL_BATTERY_KEYWORDS = (
+    "dimmer",
+    "remote",
+    "afstandsbediening",
+    "button",
+    "knop",
+    "nuki",
+    "bridge",
+    "motion",
+    "beweging",
+    "door",
+    "deur",
+    "window",
+    "raam",
+    "sensor keuken",
+    "entree-sensor",
+    "w-dimmer",
+    "k-dimmer",
+)
 
 _POWER_UNITS = {UnitOfPower.WATT, UnitOfPower.KILO_WATT}
 _ENERGY_UNITS = {UnitOfEnergy.WATT_HOUR, UnitOfEnergy.KILO_WATT_HOUR}
@@ -171,7 +222,7 @@ def _normalize_stored_entities(stored_entities: Any) -> dict[str, list[str]]:
 
 
 def _auto_detect_entities(hass: Any, enabled_features: dict[str, bool]) -> dict[str, list[str]]:
-    """Suggest entities for selected modules based on names, ids and units."""
+    """Suggest high-confidence entities for selected modules."""
     registry = er.async_get(hass)
     suggestions: dict[str, list[tuple[int, str]]] = {
         feature: [] for feature in FEATURE_KEYS if enabled_features.get(feature, False)
@@ -189,7 +240,7 @@ def _auto_detect_entities(hass: Any, enabled_features: dict[str, bool]) -> dict[
 
         for feature in suggestions:
             score = _auto_detect_score(feature, haystack, state)
-            if score > 0:
+            if score >= _AUTO_DETECT_MIN_SCORE[feature]:
                 suggestions[feature].append((score, entity_id))
 
     return {
@@ -218,6 +269,9 @@ def _entity_haystack(entity_entry: er.RegistryEntry, state: Any) -> str:
 
 def _auto_detect_score(feature: str, haystack: str, state: Any) -> int:
     """Score how likely an entity belongs to a feature."""
+    if feature == FEATURE_BATTERY and not _is_storage_battery_candidate(haystack):
+        return 0
+
     score = sum(2 for keyword in _AUTO_DETECT_KEYWORDS[feature] if keyword in haystack)
 
     if state is None:
@@ -226,18 +280,31 @@ def _auto_detect_score(feature: str, haystack: str, state: Any) -> int:
     device_class = state.attributes.get("device_class")
     unit = state.attributes.get("unit_of_measurement")
 
-    if device_class in {"power", "energy", "battery", "monetary"}:
+    if feature != FEATURE_BATTERY and device_class in {"power", "energy", "battery", "monetary"}:
         score += 1
     if unit in _POWER_UNITS or unit in _ENERGY_UNITS:
         score += 1
-    if feature == FEATURE_BATTERY and device_class == "battery":
-        score += 4
+    if feature == FEATURE_BATTERY:
+        score += 3
     if feature == FEATURE_DYNAMIC_TARIFF and device_class == "monetary":
         score += 4
     if feature == FEATURE_CONTROLLABLE_LOADS and haystack.startswith("switch."):
         score += 2
 
     return score
+
+
+def _is_storage_battery_candidate(haystack: str) -> bool:
+    """Return whether a battery entity looks like a home battery system."""
+    has_storage_signal = any(keyword in haystack for keyword in _BATTERY_STORAGE_KEYWORDS)
+    has_small_battery_signal = any(keyword in haystack for keyword in _SMALL_BATTERY_KEYWORDS)
+
+    if has_storage_signal:
+        return True
+    if has_small_battery_signal:
+        return False
+
+    return False
 
 
 def _merge_entity_defaults(
