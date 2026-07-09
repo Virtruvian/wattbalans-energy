@@ -29,7 +29,7 @@ DASHBOARD_TITLE = "WattBalans Energy"
 DASHBOARD_URL_PATH = "wattbalans-energy"
 DASHBOARD_ICON = "mdi:home-lightning-bolt"
 _MANAGED_MARKER = "wattbalans_energy"
-_MANAGED_VERSION = 1
+_MANAGED_VERSION = 2
 
 ConfiguredEntities = Mapping[str, Sequence[str] | Mapping[str, str]]
 
@@ -77,9 +77,11 @@ async def async_ensure_dashboard(
         )
         return False
 
+    entity_map = _entity_map_from_configured_entities(configured_entities or {})
     dashboard_config = build_dashboard_config(
         enabled_features,
-        _entity_map_from_configured_entities(configured_entities or {}),
+        entity_map,
+        _entity_metadata(hass, entity_map),
     )
     dashboard_config[_MANAGED_MARKER] = {
         "managed": True,
@@ -145,6 +147,28 @@ def _entity_map_from_configured_entities(
             entity_map[feature] = entity_ids
 
     return entity_map
+
+
+def _entity_metadata(
+    hass: HomeAssistant,
+    entity_map: Mapping[str, tuple[str, ...]],
+) -> dict[str, dict[str, str | None]]:
+    """Return dashboard metadata for configured entities."""
+    metadata: dict[str, dict[str, str | None]] = {}
+
+    for entity_ids in entity_map.values():
+        for entity_id in entity_ids:
+            state = hass.states.get(entity_id)
+            domain = entity_id.split(".", 1)[0]
+            metadata[entity_id] = {
+                "device_class": state.attributes.get("device_class") if state else None,
+                "domain": domain,
+                "friendly_name": state.attributes.get("friendly_name") if state else None,
+                "state_class": state.attributes.get("state_class") if state else None,
+                "unit": state.attributes.get("unit_of_measurement") if state else None,
+            }
+
+    return metadata
 
 
 def _is_managed_dashboard(config: dict[str, Any]) -> bool:
