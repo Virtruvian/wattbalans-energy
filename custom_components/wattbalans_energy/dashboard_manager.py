@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
 from homeassistant.components import frontend
@@ -31,7 +31,7 @@ DASHBOARD_ICON = "mdi:home-lightning-bolt"
 _MANAGED_MARKER = "wattbalans_energy"
 _MANAGED_VERSION = 1
 
-ConfiguredEntities = Mapping[str, Mapping[str, str]]
+ConfiguredEntities = Mapping[str, Sequence[str] | Mapping[str, str]]
 
 
 def _dashboard_metadata() -> dict[str, Any]:
@@ -132,11 +132,19 @@ def _async_ensure_panel(hass: HomeAssistant, dashboard_item: dict[str, Any]) -> 
 def _entity_map_from_configured_entities(
     configured_entities: ConfiguredEntities,
 ) -> dict[str, tuple[str, ...]]:
-    """Convert configured entity fields to dashboard entity IDs per feature."""
-    return {
-        feature: tuple(entity_id for entity_id in entities.values() if entity_id)
-        for feature, entities in configured_entities.items()
-    }
+    """Convert configured entity selections to dashboard entity IDs per feature."""
+    entity_map: dict[str, tuple[str, ...]] = {}
+
+    for feature, configured in configured_entities.items():
+        if isinstance(configured, Mapping):
+            entity_ids = tuple(str(entity_id) for entity_id in configured.values() if entity_id)
+        else:
+            entity_ids = tuple(str(entity_id) for entity_id in configured if entity_id)
+
+        if entity_ids:
+            entity_map[feature] = entity_ids
+
+    return entity_map
 
 
 def _is_managed_dashboard(config: dict[str, Any]) -> bool:
