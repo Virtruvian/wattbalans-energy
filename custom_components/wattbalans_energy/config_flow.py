@@ -8,7 +8,7 @@ import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.const import UnitOfEnergy, UnitOfPower
-from homeassistant.core import callback
+from homeassistant.core import callback, valid_entity_id
 from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers import entity_registry as er, selector
 
@@ -60,6 +60,8 @@ _AUTO_DETECT_MIN_SCORE: dict[str, int] = {
     FEATURE_DYNAMIC_TARIFF: 4,
     FEATURE_CONTROLLABLE_LOADS: 4,
 }
+
+_ENERGY_DASHBOARD_SCORE = 100
 
 _BATTERY_STORAGE_KEYWORDS = (
     "alpha ess",
@@ -221,12 +223,17 @@ def _normalize_stored_entities(stored_entities: Any) -> dict[str, list[str]]:
     return normalized
 
 
-def _auto_detect_entities(hass: Any, enabled_features: dict[str, bool]) -> dict[str, list[str]]:
+async def _auto_detect_entities(
+    hass: Any,
+    enabled_features: dict[str, bool],
+) -> dict[str, list[str]]:
     """Suggest high-confidence entities for selected modules."""
     registry = er.async_get(hass)
-    suggestions: dict[str, list[tuple[int, str]]] = {
-        feature: [] for feature in FEATURE_KEYS if enabled_features.get(feature, False)
+    suggestions: dict[str, dict[str, int]] = {
+        feature: {} for feature in FEATURE_KEYS if enabled_features.get(feature, False)
     }
+
+    await _add_energy_dashboard_suggestions(hass, suggestions)
 
     for entity_entry in registry.entities.values():
         entity_id = entity_entry.entity_id
@@ -241,13 +248,102 @@ def _auto_detect_entities(hass: Any, enabled_features: dict[str, bool]) -> dict[
         for feature in suggestions:
             score = _auto_detect_score(feature, haystack, state)
             if score >= _AUTO_DETECT_MIN_SCORE[feature]:
-                suggestions[feature].append((score, entity_id))
+                suggestions[feature][entity_id] = max(
+                    suggestions[feature].get(entity_id, 0),
+                    score,
+                )
 
     return {
-        feature: [entity_id for _score, entity_id in sorted(matches, reverse=True)[:10]]
+        feature: [entity_id for entity_id, _score in _sort_suggestions(matches)[:10]]
         for feature, matches in suggestions.items()
         if matches
     }
+
+
+async def _add_energy_dashboard_suggestions(
+    hass: Any,
+    suggestions: dict[str, dict[str, int]],
+) -> None:
+    """Add entities already configured in the Home Assistant energy dashboard."""
+    try:
+        from homeassistant.components.energy.data import async_get_manager  # noqa: PLC0415
+
+        manager = await async_get_manager(hass)
+    except (ImportError, RuntimeError, ValueError):
+        return
+
+    preferences = manager.data or manager.default_preferences()
+
+    for source in preferences.get("energy_sources", []):
+        source_type = source.get("type")
+        feature = _feature_from_energy_source_type(source_type)
+        if feature not in suggestions:
+            continue
+
+        for entity_id in _energy_source_entity_ids(source):
+            _add_suggestion_if_entity_exists(suggestions[feature], entity_id)
+
+    if FEATURE_CONTROLLABLE_LOADS in suggestions:
+        for consumption in preferences.get("device_consumption", []):
+            for key in ("stat_consumption", "stat_rate"):
+                _add_suggestion_if_entity_exists(
+                    suggestions[FEATURE_CONTROLLABLE_LOADS],
+                    consumption.get(key),
+                )
+
+
+def _feature_from_energy_source_type(source_type: str | None) -> str | None:
+    """Map Home Assistant energy source types to WattBalans features."""
+    return {
+        "solar": FEATURE_SOLAR,
+        "grid": FEATURE_GRID,
+        "battery": FEATURE_BATTERY,
+    }.get(source_type)
+
+
+def _energy_source_entity_ids(source: dict[str, Any]) -> tuple[str, ...]:
+    """Extract entity IDs from one Home Assistant energy source."""
+    entity_ids: list[str] = []
+
+    for key in (
+        "stat_energy_from",
+        "stat_energy_to",
+        "stat_rate",
+        "stat_soc",
+        "entity_energy_price",
+        "entity_energy_price_export",
+    ):
+        value = source.get(key)
+        if value:
+            entity_ids.append(str(value))
+
+    power_config = source.get("power_config")
+    if isinstance(power_config, dict):
+        for key in ("stat_rate", "stat_rate_inverted", "stat_rate_from", "stat_rate_to"):
+            value = power_config.get(key)
+            if value:
+                entity_ids.append(str(value))
+
+    return tuple(entity_ids)
+
+
+def _add_suggestion_if_entity_exists(
+    suggestions: dict[str, int],
+    entity_id: Any,
+) -> None:
+    """Add an energy dashboard entity as a high-confidence suggestion."""
+    if not isinstance(entity_id, str) or not valid_entity_id(entity_id):
+        return
+
+    suggestions[entity_id] = max(
+        suggestions.get(entity_id, 0),
+        _ENERGY_DASHBOARD_SCORE,
+    )
+
+
+def _sort_suggestions(matches: dict[str, int]) -> list[tuple[str, int]]:
+    """Sort suggestions by score and entity ID for deterministic defaults."""
+    return sorted(matches.items(), key=lambda item: (-item[1], item[0]))
 
 
 def _entity_haystack(entity_entry: er.RegistryEntry, state: Any) -> str:
@@ -357,7 +453,7 @@ class WattBalansEnergyConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         user_input: dict[str, Any] | None = None,
     ) -> FlowResult:
         """Handle optional entity selection."""
-        auto_detected = _auto_detect_entities(self.hass, self._features)
+        auto_detected = await _auto_detect_entities(self.hass, self._features)
         if user_input is not None:
             return self.async_create_entry(
                 title="WattBalans Energy Management",
@@ -404,7 +500,7 @@ class WattBalansEnergyOptionsFlow(config_entries.OptionsFlow):
     ) -> FlowResult:
         """Manage WattBalans entity options."""
         current_entities = _entry_entities(self._config_entry)
-        auto_detected = _auto_detect_entities(self.hass, self._features)
+        auto_detected = await _auto_detect_entities(self.hass, self._features)
         defaults = _merge_entity_defaults(current_entities, auto_detected)
 
         if user_input is not None:
