@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.8
+
+- Verkort entiteitnamen in tegels en lijsten zodat labels leesbaarder worden.
+- Vervangt ruwe history-grafieken door vloeiendere statistics-grafieken met gemiddelden per 5 minuten.
+- Richt de overzichtspagina opnieuw in met KPI's, samenvattingsblokken en een compacte trendgrafiek.
+- Haalt de drukke pseudo-energy-flow uit de native fallback en maakt ruimte voor een betere optionele flowkaart later.
+
 ## 0.1.7
 
 - Voegt een SEM-inspired overzichtspagina toe met KPI-tegels, energiestroom en compacte moduleblokken.
