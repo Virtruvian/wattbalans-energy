@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.6
+
+- Bouwt slimmere dashboardkaarten op basis van entity metadata.
+- Groepeert entities automatisch in laadniveau, vermogen, energie, tarieven en status/bediening.
+- Voegt history-graph kaarten toe voor vermogensentities.
+- Voegt gauge-kaarten toe voor SOC/laadniveau.
+- Maakt het overzicht compacter met module-aantallen en relevante samenvattingskaarten.
+
 ## 0.1.5
 
 - Gebruikt de bestaande Home Assistant Energy Dashboard-configuratie als sterke bron voor automatische entity-suggesties.
