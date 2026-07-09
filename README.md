@@ -55,9 +55,21 @@ De huidige dashboardmanager:
 - werkt het beheerde dashboard opnieuw bij na een wijziging in de options flow;
 - weigert een bestaand dashboard met hetzelfde pad te overschrijven wanneer dit niet door WattBalans is aangemaakt.
 
+## SEM-inspired overzicht
+
+De overzichtspagina gebruikt een SEM-inspired structuur met:
+
+- KPI-tegels voor actuele hoofdwaarden;
+- een native Lovelace energiestroom met blokken voor zon, huis, net, accu, EV, verbruikers en opslag;
+- compacte moduleblokken;
+- grafieken voor vermogenswaarden;
+- gauges voor SOC/laadniveau.
+
+Deze eerste visuele laag gebruikt alleen standaard Home Assistant Lovelace-kaarten. Er zijn dus nog geen verplichte custom cards nodig. Later kunnen optioneel Mushroom, ApexCharts of een echte power-flow card worden ondersteund.
+
 ## Status
 
-Alphafase. De huidige versie bevat een Home Assistant-integratie met config flow, options flow, conditioneel geladen modules, automatische entity-herkenning, optionele multi-entity-selectie, diagnostische module-entiteiten, HACS-structuur, een modulaire dashboardconfiguratiegenerator en een eerste dashboardmanager. De daadwerkelijke energiemodules volgen in de volgende ontwikkelfasen.
+Alphafase. De huidige versie bevat een Home Assistant-integratie met config flow, options flow, conditioneel geladen modules, automatische entity-herkenning, optionele multi-entity-selectie, diagnostische module-entiteiten, HACS-structuur, een SEM-inspired dashboardconfiguratiegenerator en een eerste dashboardmanager. De daadwerkelijke energiemodules volgen in de volgende ontwikkelfasen.
 
 ## Installatie via HACS
 
