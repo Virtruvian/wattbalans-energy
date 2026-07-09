@@ -21,18 +21,22 @@ De integratie wordt via HACS installeerbaar en ondersteunt op termijn optionele 
 - dynamische energietarieven;
 - schakelbare verbruikers.
 
-## Entity-selectie
+## Automatische herkenning en entity-selectie
 
-Na het kiezen van de modules kan per onderdeel een set Home Assistant-entiteiten worden gekoppeld. Deze velden zijn optioneel en kunnen later via **Opties** worden aangepast.
+Na het kiezen van de modules probeert WattBalans relevante Home Assistant-entiteiten automatisch te herkennen op basis van entity ID, naam, device class, state class en meeteenheid.
+
+De automatische herkenning is bedoeld als voorstel. De selectie blijft handmatig aanpasbaar via de configuratieflow en via **Opties**.
+
+Per module kunnen meerdere entiteiten worden geselecteerd. Daardoor ondersteunt de basis meerdere zonnepaneleninstallaties, meerdere omvormers, meerdere batterijsystemen en meerdere laadpunten.
 
 Voorbeelden:
 
-- zonnepanelen: huidig vermogen, opbrengst vandaag en totaalopbrengst;
-- netaansluiting: huidig vermogen, afname totaal en teruglevering totaal;
-- batterij: laadniveau, laad-/ontlaadvermogen en energieteller;
+- zonnepanelen: alle relevante solar-, PV-, omvormer- en opbrengstentiteiten;
+- netaansluiting: P1-, grid-, import- en exportentiteiten;
+- batterij: SOC-, laadvermogen-, ontlaadvermogen- en accu-entiteiten;
 - EV-laden: laadvermogen, geladen energie en status;
 - dynamische tarieven: huidige en volgende prijs;
-- schakelbare verbruikers: vermogen en schakelaar.
+- schakelbare verbruikers: vermogen en schakelaars.
 
 ## Automatisch dashboard
 
@@ -53,7 +57,7 @@ De huidige dashboardmanager:
 
 ## Status
 
-Alphafase. De huidige versie bevat een Home Assistant-integratie met config flow, options flow, conditioneel geladen modules, optionele entity-selectie, diagnostische module-entiteiten, HACS-structuur, een modulaire dashboardconfiguratiegenerator en een eerste dashboardmanager. De daadwerkelijke energiemodules volgen in de volgende ontwikkelfasen.
+Alphafase. De huidige versie bevat een Home Assistant-integratie met config flow, options flow, conditioneel geladen modules, automatische entity-herkenning, optionele multi-entity-selectie, diagnostische module-entiteiten, HACS-structuur, een modulaire dashboardconfiguratiegenerator en een eerste dashboardmanager. De daadwerkelijke energiemodules volgen in de volgende ontwikkelfasen.
 
 ## Installatie via HACS
 
@@ -69,7 +73,7 @@ Alphafase. De huidige versie bevat een Home Assistant-integratie met config flow
 7. Herstart Home Assistant.
 8. Voeg de integratie toe via **Instellingen → Apparaten en diensten**.
 9. Selecteer de aanwezige onderdelen.
-10. Koppel eventueel de bijbehorende Home Assistant-entiteiten.
+10. Controleer de automatisch voorgestelde entiteiten en pas deze eventueel aan.
 11. Open daarna het dashboard **WattBalans Energy** in de zijbalk.
 
 ## Ontwikkeling
