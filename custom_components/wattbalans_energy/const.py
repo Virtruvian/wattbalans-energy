@@ -4,6 +4,7 @@ DOMAIN = "wattbalans_energy"
 NAME = "WattBalans Energy Management"
 
 CONF_FEATURES = "features"
+CONF_ENTITIES = "entities"
 
 FEATURE_SOLAR = "solar"
 FEATURE_GRID = "grid"

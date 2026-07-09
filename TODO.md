@@ -8,7 +8,7 @@
 - [x] Diagnostische module-entiteiten.
 - [x] Dashboardgenerator.
 - [x] Dashboardmanager die `WattBalans Energy` automatisch aanmaakt.
-- [ ] HACS validation en hassfest controleren na dashboardmanager.
+- [ ] HACS validation en hassfest controleren na entity-selectie.
 - [ ] Installatie-upgrade testen vanuit HACS.
 - [ ] Eerste alpha-release taggen.
 
@@ -18,7 +18,8 @@
 - [x] Dashboard tonen in de zijbalk.
 - [x] Alleen views maken voor geselecteerde modules.
 - [x] Niet-beheerde dashboards met hetzelfde pad niet overschrijven.
-- [ ] Entityselectie per module toevoegen.
+- [x] Entityselectie per module toevoegen.
+- [x] Gekoppelde entities tonen in moduleviews.
 - [ ] Echte energiekaarten toevoegen.
 - [ ] Gebruikerswaarschuwing of repair issue toevoegen wanneer dashboardpad al bezet is.
 

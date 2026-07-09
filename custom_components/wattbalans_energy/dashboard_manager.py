@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from homeassistant.components import frontend
@@ -31,6 +31,8 @@ DASHBOARD_ICON = "mdi:home-lightning-bolt"
 _MANAGED_MARKER = "wattbalans_energy"
 _MANAGED_VERSION = 1
 
+ConfiguredEntities = Mapping[str, Mapping[str, str]]
+
 
 def _dashboard_metadata() -> dict[str, Any]:
     """Return the Lovelace dashboard registry metadata."""
@@ -47,6 +49,7 @@ def _dashboard_metadata() -> dict[str, Any]:
 async def async_ensure_dashboard(
     hass: HomeAssistant,
     enabled_features: Iterable[str],
+    configured_entities: ConfiguredEntities | None = None,
 ) -> bool:
     """Create or update the managed WattBalans dashboard."""
     if LOVELACE_DATA not in hass.data:
@@ -74,7 +77,10 @@ async def async_ensure_dashboard(
         )
         return False
 
-    dashboard_config = build_dashboard_config(enabled_features)
+    dashboard_config = build_dashboard_config(
+        enabled_features,
+        _entity_map_from_configured_entities(configured_entities or {}),
+    )
     dashboard_config[_MANAGED_MARKER] = {
         "managed": True,
         "version": _MANAGED_VERSION,
@@ -121,6 +127,16 @@ def _async_ensure_panel(hass: HomeAssistant, dashboard_item: dict[str, Any]) -> 
         config={"mode": MODE_STORAGE},
         update=DASHBOARD_URL_PATH in hass.data[LOVELACE_DATA].dashboards,
     )
+
+
+def _entity_map_from_configured_entities(
+    configured_entities: ConfiguredEntities,
+) -> dict[str, tuple[str, ...]]:
+    """Convert configured entity fields to dashboard entity IDs per feature."""
+    return {
+        feature: tuple(entity_id for entity_id in entities.values() if entity_id)
+        for feature, entities in configured_entities.items()
+    }
 
 
 def _is_managed_dashboard(config: dict[str, Any]) -> bool:
