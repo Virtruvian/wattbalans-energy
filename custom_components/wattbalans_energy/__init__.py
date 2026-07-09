@@ -7,6 +7,7 @@ from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
 
 from .const import CONF_FEATURES, DEFAULT_FEATURES, DOMAIN
+from .dashboard_manager import async_ensure_dashboard
 
 PLATFORMS: tuple[Platform, ...] = (Platform.SENSOR,)
 
@@ -36,6 +37,8 @@ async def async_setup_entry(
 
     if enabled_features:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    await async_ensure_dashboard(hass, enabled_features)
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
