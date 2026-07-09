@@ -16,24 +16,14 @@
       },
       "entities": {
         "title": "Koppel entiteiten",
-        "description": "Kies per geselecteerd onderdeel de bijbehorende Home Assistant-entiteiten. Velden mogen leeg blijven en kunnen later via Opties worden ingevuld.",
+        "description": "WattBalans heeft {auto_detected_count} mogelijke entiteiten automatisch voorgeselecteerd. Controleer de selectie en voeg waar nodig extra entiteiten toe. Je kunt meerdere zonnepanelen-, batterij- en andere systemen per module selecteren.",
         "data": {
-          "solar_power_entity": "Zonnepanelen - huidig vermogen",
-          "solar_energy_today_entity": "Zonnepanelen - opbrengst vandaag",
-          "solar_energy_total_entity": "Zonnepanelen - totaalopbrengst",
-          "grid_power_entity": "Net - huidig vermogen",
-          "grid_import_energy_entity": "Net - afname totaal",
-          "grid_export_energy_entity": "Net - teruglevering totaal",
-          "battery_soc_entity": "Batterij - laadniveau",
-          "battery_power_entity": "Batterij - laad/ontlaadvermogen",
-          "battery_energy_entity": "Batterij - energie totaal",
-          "ev_charging_power_entity": "EV-laden - laadvermogen",
-          "ev_charging_energy_entity": "EV-laden - laadsessie/energie",
-          "ev_charging_status_entity": "EV-laden - status",
-          "dynamic_tariff_price_entity": "Dynamisch tarief - huidige prijs",
-          "dynamic_tariff_next_price_entity": "Dynamisch tarief - volgende prijs",
-          "controllable_load_power_entity": "Schakelbare verbruikers - vermogen",
-          "controllable_load_switch_entity": "Schakelbare verbruikers - schakelaar"
+          "solar_entities": "Zonnepanelen - entiteiten",
+          "grid_entities": "Netaansluiting - entiteiten",
+          "battery_entities": "Batterijen / accu's - entiteiten",
+          "ev_charging_entities": "EV-laden - entiteiten",
+          "dynamic_tariff_entities": "Dynamische tarieven - entiteiten",
+          "controllable_loads_entities": "Schakelbare verbruikers - entiteiten"
         }
       }
     },
@@ -57,24 +47,14 @@
       },
       "entities": {
         "title": "Entiteiten wijzigen",
-        "description": "Kies de entiteiten die in het WattBalans-dashboard moeten worden getoond. De integratie wordt daarna automatisch herladen.",
+        "description": "WattBalans heeft {auto_detected_count} mogelijke entiteiten automatisch gevonden. Controleer de selectie. De integratie wordt daarna automatisch herladen.",
         "data": {
-          "solar_power_entity": "Zonnepanelen - huidig vermogen",
-          "solar_energy_today_entity": "Zonnepanelen - opbrengst vandaag",
-          "solar_energy_total_entity": "Zonnepanelen - totaalopbrengst",
-          "grid_power_entity": "Net - huidig vermogen",
-          "grid_import_energy_entity": "Net - afname totaal",
-          "grid_export_energy_entity": "Net - teruglevering totaal",
-          "battery_soc_entity": "Batterij - laadniveau",
-          "battery_power_entity": "Batterij - laad/ontlaadvermogen",
-          "battery_energy_entity": "Batterij - energie totaal",
-          "ev_charging_power_entity": "EV-laden - laadvermogen",
-          "ev_charging_energy_entity": "EV-laden - laadsessie/energie",
-          "ev_charging_status_entity": "EV-laden - status",
-          "dynamic_tariff_price_entity": "Dynamisch tarief - huidige prijs",
-          "dynamic_tariff_next_price_entity": "Dynamisch tarief - volgende prijs",
-          "controllable_load_power_entity": "Schakelbare verbruikers - vermogen",
-          "controllable_load_switch_entity": "Schakelbare verbruikers - schakelaar"
+          "solar_entities": "Zonnepanelen - entiteiten",
+          "grid_entities": "Netaansluiting - entiteiten",
+          "battery_entities": "Batterijen / accu's - entiteiten",
+          "ev_charging_entities": "EV-laden - entiteiten",
+          "dynamic_tariff_entities": "Dynamische tarieven - entiteiten",
+          "controllable_loads_entities": "Schakelbare verbruikers - entiteiten"
         }
       }
     }
