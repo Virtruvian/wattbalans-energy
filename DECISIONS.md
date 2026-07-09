@@ -83,3 +83,13 @@ De herkenning blijft adviserend. De gebruiker kan voorgestelde entiteiten verwij
 Per module wordt een multi-entity-selector gebruikt. Daardoor kunnen meerdere zonnepaneleninstallaties, omvormers, batterijen, laadpunten en slimme verbruikers onder dezelfde module vallen.
 
 Oude opslagvormen met veldnamen per rol worden genormaliseerd naar lijsten met entity IDs, zodat bestaande testinstallaties niet direct breken.
+
+## ADR-008 — SEM-inspired dashboard zonder verplichte custom cards
+
+**Status:** accepted
+
+WattBalans gebruikt een SEM-inspired dashboardstructuur met KPI-tegels, een native energy-flow sectie en compacte moduleblokken. De eerste implementatie gebruikt standaard Lovelace-kaarten zodat het dashboard zonder extra frontend-afhankelijkheden werkt.
+
+De layout is bewust geen 1-op-1 kopie van SEM Community, maar volgt dezelfde functionele richting: snel inzicht in actuele energiestromen, modules en hoofdwaarden.
+
+Custom cards zoals Mushroom, ApexCharts, Layout Card of een echte power-flow card kunnen later optioneel worden ondersteund. De standaardweergave blijft de fallback.
