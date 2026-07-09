@@ -119,7 +119,7 @@ def _async_ensure_panel(hass: HomeAssistant, dashboard_item: dict[str, Any]) -> 
         sidebar_title=dashboard_item.get(CONF_TITLE, DASHBOARD_TITLE),
         sidebar_icon=dashboard_item.get(CONF_ICON, DASHBOARD_ICON),
         config={"mode": MODE_STORAGE},
-        update=frontend.async_panel_exists(hass, DASHBOARD_URL_PATH),
+        update=DASHBOARD_URL_PATH in hass.data[LOVELACE_DATA].dashboards,
     )
 
 
