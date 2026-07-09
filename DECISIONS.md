@@ -71,3 +71,15 @@ Uitgangspunten:
 - ontbrekende entiteiten tonen nog steeds een tijdelijke modulemelding.
 
 Deze laag koppelt bestaande Home Assistant-entiteiten aan WattBalans. De echte energielogica en automatische apparaatdetectie worden later toegevoegd.
+
+## ADR-007 — Automatische herkenning en meerdere systemen
+
+**Status:** accepted
+
+De entity-selectie gebruikt automatische suggesties op basis van de Home Assistant entity registry en actuele state metadata. De herkenning kijkt naar entity ID, naam, device class, state class, meeteenheid en herkenbare trefwoorden.
+
+De herkenning blijft adviserend. De gebruiker kan voorgestelde entiteiten verwijderen of extra entiteiten toevoegen.
+
+Per module wordt een multi-entity-selector gebruikt. Daardoor kunnen meerdere zonnepaneleninstallaties, omvormers, batterijen, laadpunten en slimme verbruikers onder dezelfde module vallen.
+
+Oude opslagvormen met veldnamen per rol worden genormaliseerd naar lijsten met entity IDs, zodat bestaande testinstallaties niet direct breken.
