@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.5
+
+- Gebruikt de bestaande Home Assistant Energy Dashboard-configuratie als sterke bron voor automatische entity-suggesties.
+- Neemt solar-, grid- en batterijbronnen uit het Energy Dashboard over als voorgeselecteerde WattBalans-entiteiten wanneer ze beschikbaar zijn.
+- Neemt bekende apparaatverbruikers uit het Energy Dashboard mee als voorstel voor schakelbare/verbruikersmodules.
+- Houdt trefwoorddetectie als aanvullende fallback naast de Energy Dashboard-configuratie.
+
 ## 0.1.4
 
 - Maakt automatische batterijherkenning selectiever.
