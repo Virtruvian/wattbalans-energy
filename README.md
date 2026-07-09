@@ -27,20 +27,19 @@ WattBalans krijgt na configuratie automatisch een eigen Home Assistant-dashboard
 
 Het dashboard wordt modulair opgebouwd op basis van de gekozen onderdelen. Een installatie zonder thuisbatterij of EV-laadpunt krijgt dus geen lege batterij- of EV-pagina's.
 
-De huidige basisgenerator maakt:
+De huidige dashboardmanager:
 
-- altijd een algemeen overzicht;
-- een aparte view voor zonnepanelen en netaansluiting wanneer geselecteerd;
-- optionele views voor batterij en EV-laden;
-- optionele views voor dynamische tarieven en schakelbare verbruikers;
-- entiteitskaarten wanneer de bijbehorende Home Assistant-entiteiten bekend zijn;
-- een duidelijke tijdelijke melding zolang een module nog geen gekoppelde entiteiten heeft.
-
-**Huidige status:** de modulaire Lovelace-configuratiegenerator is aanwezig. Automatisch registreren en veilig synchroniseren met Home Assistant-opslag volgt als afzonderlijke managerlaag.
+- maakt automatisch het dashboard `WattBalans Energy` aan;
+- gebruikt het pad `wattbalans-energy`;
+- toont het dashboard in de Home Assistant-zijbalk;
+- maakt altijd een algemeen overzicht;
+- maakt alleen views voor geselecteerde modules;
+- werkt het beheerde dashboard opnieuw bij na een wijziging in de options flow;
+- weigert een bestaand dashboard met hetzelfde pad te overschrijven wanneer dit niet door WattBalans is aangemaakt.
 
 ## Status
 
-Alphafase. De huidige versie bevat een Home Assistant-integratie met config flow, options flow, conditioneel geladen modules, diagnostische module-entiteiten, HACS-structuur en een modulaire dashboardconfiguratiegenerator. De daadwerkelijke energiemodules en automatische dashboardregistratie volgen in de volgende ontwikkelfasen.
+Alphafase. De huidige versie bevat een Home Assistant-integratie met config flow, options flow, conditioneel geladen modules, diagnostische module-entiteiten, HACS-structuur, een modulaire dashboardconfiguratiegenerator en een eerste dashboardmanager. De daadwerkelijke energiemodules volgen in de volgende ontwikkelfasen.
 
 ## Installatie via HACS
 
@@ -56,6 +55,7 @@ Alphafase. De huidige versie bevat een Home Assistant-integratie met config flow
 7. Herstart Home Assistant.
 8. Voeg de integratie toe via **Instellingen → Apparaten en diensten**.
 9. Selecteer de aanwezige onderdelen.
+10. Open daarna het dashboard **WattBalans Energy** in de zijbalk.
 
 ## Ontwikkeling
 
