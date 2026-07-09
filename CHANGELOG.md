@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.7
+
+- Voegt een SEM-inspired overzichtspagina toe met KPI-tegels, energiestroom en compacte moduleblokken.
+- Gebruikt native Lovelace tile-, grid-, markdown-, gauge-, history-graph- en entities-kaarten zonder verplichte custom cards.
+- Maakt de eerste energiestroom visueel met blokken voor zon, huis, net, accu, EV, verbruikers en opslag.
+- Verhoogt de managed dashboardversie zodat het WattBalans-dashboard opnieuw wordt opgebouwd.
+
 ## 0.1.6
 
 - Bouwt slimmere dashboardkaarten op basis van entity metadata.
