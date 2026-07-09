@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.4
+
+- Maakt automatische batterijherkenning selectiever.
+- Sluit kleine apparaatbatterijen van dimmers, sensoren, Nuki en remotes beter uit.
+- Herkent thuisaccu's sterker via signalen zoals Alpha ESS, Zinvolt, thuisaccu, SOC, charge/discharge en omvormer/inverter.
+- Houdt automatische herkenning als voorstel dat handmatig gecontroleerd en aangepast moet worden.
+
 ## 0.1.3
 
 - Voegt automatische entity-herkenning toe voor geselecteerde modules.
