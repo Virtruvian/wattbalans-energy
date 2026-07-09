@@ -29,7 +29,7 @@ DASHBOARD_TITLE = "WattBalans Energy"
 DASHBOARD_URL_PATH = "wattbalans-energy"
 DASHBOARD_ICON = "mdi:home-lightning-bolt"
 _MANAGED_MARKER = "wattbalans_energy"
-_MANAGED_VERSION = 3
+_MANAGED_VERSION = 4
 
 ConfiguredEntities = Mapping[str, Sequence[str] | Mapping[str, str]]
 
