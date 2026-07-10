@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.9
+
+- Bouwt het dashboard opnieuw op rond het eerder ontworpen energie-regie concept.
+- Maakt de hoofdpagina `Regie` met een flowchart voor aanwezige onderdelen.
+- Maakt subpagina's per onderdeel: zon, net, batterij, EV, kosten en slimme apparaten.
+- Houdt de modulepagina's compacter met belangrijkste waarden, trends, energie, kosten en bediening.
+
 ## 0.1.8
 
 - Verkort entiteitnamen in tegels en lijsten zodat labels leesbaarder worden.
