@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.12
+
+- Voegt gedeelde WattBalans naamherkenning toe voor batterij-, prijs-, energie- en vermogensentiteiten.
+- Maakt voor geselecteerde bronentiteiten eigen WattBalans-entiteiten aan met korte duidelijke namen.
+- Spiegelt state, eenheid, device class en state class van de originele bronentiteit.
+- Koppelt de nieuwe WattBalans-entiteiten aan het WattBalans-apparaat zodat ze herkenbaar terug te vinden zijn.
+
 ## 0.1.11
 
 - Verbetert de korte labels voor batterij- en accu-entiteiten.
