@@ -48,7 +48,7 @@ async def async_setup_entry(
     if enabled_features:
         await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    await async_ensure_dashboard(hass, enabled_features, configured_entities)
+    await async_ensure_dashboard(hass, entry.entry_id, enabled_features, configured_entities)
 
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     return True
