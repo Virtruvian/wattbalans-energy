@@ -19,7 +19,7 @@ EntityMap = Mapping[str, tuple[str, ...]]
 
 
 class EntityMetadata(TypedDict, total=False):
-    """Metadata used to build richer Lovelace cards."""
+    """Metadata used to build dashboard cards."""
 
     device_class: str | None
     domain: str
@@ -30,7 +30,7 @@ class EntityMetadata(TypedDict, total=False):
 
 EntityMetadataMap = Mapping[str, EntityMetadata]
 
-_FEATURE_ORDER = (
+FEATURE_ORDER = (
     FEATURE_SOLAR,
     FEATURE_GRID,
     FEATURE_BATTERY,
@@ -39,16 +39,25 @@ _FEATURE_ORDER = (
     FEATURE_CONTROLLABLE_LOADS,
 )
 
-_FEATURE_LABELS = {
-    FEATURE_SOLAR: "Zonnepanelen",
-    FEATURE_GRID: "Netaansluiting",
-    FEATURE_BATTERY: "Thuisbatterij",
-    FEATURE_EV_CHARGING: "EV-laden",
-    FEATURE_DYNAMIC_TARIFF: "Dynamische tarieven",
-    FEATURE_CONTROLLABLE_LOADS: "Schakelbare verbruikers",
+FEATURE_LABELS = {
+    FEATURE_SOLAR: "Zon",
+    FEATURE_GRID: "Net",
+    FEATURE_BATTERY: "Batterij",
+    FEATURE_EV_CHARGING: "EV",
+    FEATURE_DYNAMIC_TARIFF: "Kosten",
+    FEATURE_CONTROLLABLE_LOADS: "Slim",
 }
 
-_FEATURE_ICONS = {
+FEATURE_LONG_LABELS = {
+    FEATURE_SOLAR: "Zonnepanelen",
+    FEATURE_GRID: "Netaansluiting",
+    FEATURE_BATTERY: "Batterij",
+    FEATURE_EV_CHARGING: "EV-laden",
+    FEATURE_DYNAMIC_TARIFF: "Kosten & tarieven",
+    FEATURE_CONTROLLABLE_LOADS: "Slimme apparaten",
+}
+
+FEATURE_ICONS = {
     FEATURE_SOLAR: "mdi:solar-power",
     FEATURE_GRID: "mdi:transmission-tower",
     FEATURE_BATTERY: "mdi:home-battery",
@@ -57,7 +66,7 @@ _FEATURE_ICONS = {
     FEATURE_CONTROLLABLE_LOADS: "mdi:power-plug",
 }
 
-_FEATURE_ACCENT = {
+FEATURE_EMOJI = {
     FEATURE_SOLAR: "☀️",
     FEATURE_GRID: "⚡",
     FEATURE_BATTERY: "🔋",
@@ -72,154 +81,177 @@ def build_dashboard_config(
     entity_ids: EntityMap | None = None,
     entity_metadata: EntityMetadataMap | None = None,
 ) -> DashboardConfig:
-    """Build a deterministic dashboard for the selected WattBalans modules."""
+    """Build a dashboard based on the energy-regie structure."""
     enabled = set(enabled_features)
-    selected = tuple(feature for feature in _FEATURE_ORDER if feature in enabled)
+    selected = tuple(feature for feature in FEATURE_ORDER if feature in enabled)
     entities = entity_ids or {}
     metadata = entity_metadata or {}
 
     return {
         "title": "WattBalans Energy",
         "views": [
-            _build_overview_view(selected, entities, metadata),
+            _overview_view(selected, entities, metadata),
             *(
-                _build_feature_view(feature, entities.get(feature, ()), metadata)
+                _module_view(feature, entities.get(feature, ()), metadata)
                 for feature in selected
             ),
         ],
     }
 
 
-def _build_overview_view(
-    enabled_features: tuple[str, ...],
+def _overview_view(
+    selected: tuple[str, ...],
     entity_ids: EntityMap,
-    entity_metadata: EntityMetadataMap,
+    metadata: EntityMetadataMap,
 ) -> DashboardConfig:
-    """Build a calm SEM-inspired home overview."""
-    cards: list[DashboardConfig] = [_overview_header_card(enabled_features, entity_ids)]
+    """Build the energy-regie overview page."""
+    cards: list[DashboardConfig] = [
+        {
+            "type": "markdown",
+            "content": (
+                "# Energie regie\n\n"
+                "Overzicht van opwek, verbruik, opslag, laden, net en kosten. "
+                "De onderdelen hieronder worden automatisch opgebouwd uit de modules die aanwezig zijn."
+            ),
+        },
+        _flow_card(selected, entity_ids, metadata),
+    ]
 
-    kpis = _kpi_cards(entity_ids, entity_metadata)
+    kpis = _kpi_cards(entity_ids, metadata)
     if kpis:
         cards.append({"type": "grid", "title": "Nu", "columns": 3, "square": False, "cards": kpis})
 
-    sections = _overview_section_cards(entity_ids, entity_metadata)
-    if sections:
-        cards.append({"type": "grid", "title": "Energieoverzicht", "columns": 2, "square": False, "cards": sections})
+    regie_cards = _regie_summary_cards(selected, entity_ids, metadata)
+    if regie_cards:
+        cards.append({"type": "grid", "title": "Regieblokken", "columns": 2, "square": False, "cards": regie_cards})
 
-    trend_entities = _overview_trend_entities(entity_ids, entity_metadata)
+    trend_entities = _overview_trend_entities(entity_ids, metadata)
     if trend_entities:
-        cards.append(_statistics_graph_card("Trend laatste 24 uur", trend_entities, days_to_show=1))
+        cards.append(_trend_card("Regietrend", trend_entities))
 
-    return {"title": "Overzicht", "path": "overview", "icon": "mdi:view-dashboard", "cards": cards}
+    return {"title": "Regie", "path": "overview", "icon": "mdi:view-dashboard", "cards": cards}
 
 
-def _overview_header_card(enabled_features: tuple[str, ...], entity_ids: EntityMap) -> DashboardConfig:
-    """Return the compact dashboard header."""
-    if enabled_features:
-        modules = "  ".join(
-            f"**{_FEATURE_ACCENT[feature]} {_FEATURE_LABELS[feature]}** · {len(entity_ids.get(feature, ()))}"
-            for feature in enabled_features
-        )
-    else:
-        modules = "Er zijn nog geen modules geselecteerd."
+def _flow_card(selected: tuple[str, ...], entity_ids: EntityMap, metadata: EntityMetadataMap) -> DashboardConfig:
+    """Build a simple, readable native flowchart."""
+    nodes = {
+        FEATURE_SOLAR: _flow_node(FEATURE_SOLAR, _first_group(entity_ids, metadata, FEATURE_SOLAR, "power")),
+        FEATURE_GRID: _flow_node(FEATURE_GRID, _first_group(entity_ids, metadata, FEATURE_GRID, "power")),
+        FEATURE_BATTERY: _flow_node(FEATURE_BATTERY, _first_group(entity_ids, metadata, FEATURE_BATTERY, "soc") or _first_group(entity_ids, metadata, FEATURE_BATTERY, "power")),
+        FEATURE_EV_CHARGING: _flow_node(FEATURE_EV_CHARGING, _first_group(entity_ids, metadata, FEATURE_EV_CHARGING, "power")),
+        FEATURE_DYNAMIC_TARIFF: _flow_node(FEATURE_DYNAMIC_TARIFF, _first_group(entity_ids, metadata, FEATURE_DYNAMIC_TARIFF, "price")),
+        FEATURE_CONTROLLABLE_LOADS: _flow_node(FEATURE_CONTROLLABLE_LOADS, _first_group(entity_ids, metadata, FEATURE_CONTROLLABLE_LOADS, "power")),
+    }
+
+    solar = nodes[FEATURE_SOLAR] if FEATURE_SOLAR in selected else "☀️ Zon\n_niet aanwezig_"
+    grid = nodes[FEATURE_GRID] if FEATURE_GRID in selected else "⚡ Net\n_niet gekoppeld_"
+    battery = nodes[FEATURE_BATTERY] if FEATURE_BATTERY in selected else "🔋 Batterij\n_niet aanwezig_"
+    ev = nodes[FEATURE_EV_CHARGING] if FEATURE_EV_CHARGING in selected else "🚗 EV\n_niet aanwezig_"
+    loads = nodes[FEATURE_CONTROLLABLE_LOADS] if FEATURE_CONTROLLABLE_LOADS in selected else "🔌 Slim\n_niet aanwezig_"
+    cost = nodes[FEATURE_DYNAMIC_TARIFF] if FEATURE_DYNAMIC_TARIFF in selected else "€ Kosten\n_niet gekoppeld_"
 
     return {
         "type": "markdown",
-        "content": "# WattBalans Energy\n\nCompact overzicht van opwek, net, opslag, laden en verbruik.\n\n" + modules,
+        "title": "Energieflow",
+        "content": (
+            "```text\n"
+            f"{solar}\n"
+            "        │\n"
+            "        ▼\n"
+            "🏠 Huis / verbruik\n"
+            "        │\n"
+            f"        ├──▶ {loads}\n"
+            f"        ├──▶ {ev}\n"
+            f"        ├──↔ {battery}\n"
+            f"        └──↔ {grid}\n\n"
+            f"Regie op basis van: {cost}\n"
+            "```"
+        ),
     }
 
 
-def _kpi_cards(entity_ids: EntityMap, entity_metadata: EntityMetadataMap) -> list[DashboardConfig]:
-    """Return the most important KPI tiles for the overview."""
+def _flow_node(feature: str, entity_id: str | None) -> str:
+    """Return a compact text node for the flowchart."""
+    label = f"{FEATURE_EMOJI[feature]} {FEATURE_LABELS[feature]}"
+    return f"{label}\n{entity_id or 'geen bron'}"
+
+
+def _kpi_cards(entity_ids: EntityMap, metadata: EntityMetadataMap) -> list[DashboardConfig]:
+    """Return compact KPI tiles."""
     candidates = (
-        (FEATURE_SOLAR, "Zon nu", _first_group(entity_ids, entity_metadata, FEATURE_SOLAR, "power")),
-        (FEATURE_GRID, "Net nu", _first_group(entity_ids, entity_metadata, FEATURE_GRID, "power")),
-        (FEATURE_BATTERY, "Accu SOC", _first_group(entity_ids, entity_metadata, FEATURE_BATTERY, "soc")),
-        (FEATURE_BATTERY, "Accu nu", _first_group(entity_ids, entity_metadata, FEATURE_BATTERY, "power")),
-        (FEATURE_EV_CHARGING, "EV laden", _first_group(entity_ids, entity_metadata, FEATURE_EV_CHARGING, "power")),
-        (FEATURE_DYNAMIC_TARIFF, "Tarief", _first_group(entity_ids, entity_metadata, FEATURE_DYNAMIC_TARIFF, "price")),
-        (FEATURE_CONTROLLABLE_LOADS, "Verbruikers", _first_group(entity_ids, entity_metadata, FEATURE_CONTROLLABLE_LOADS, "power")),
+        (FEATURE_SOLAR, "Zon", _first_group(entity_ids, metadata, FEATURE_SOLAR, "power")),
+        (FEATURE_GRID, "Net", _first_group(entity_ids, metadata, FEATURE_GRID, "power")),
+        (FEATURE_BATTERY, "Accu SOC", _first_group(entity_ids, metadata, FEATURE_BATTERY, "soc")),
+        (FEATURE_BATTERY, "Accu", _first_group(entity_ids, metadata, FEATURE_BATTERY, "power")),
+        (FEATURE_EV_CHARGING, "EV", _first_group(entity_ids, metadata, FEATURE_EV_CHARGING, "power")),
+        (FEATURE_DYNAMIC_TARIFF, "Kosten", _first_group(entity_ids, metadata, FEATURE_DYNAMIC_TARIFF, "price")),
+        (FEATURE_CONTROLLABLE_LOADS, "Slim", _first_group(entity_ids, metadata, FEATURE_CONTROLLABLE_LOADS, "power")),
     )
-    return [_tile_card(entity_id, name, _FEATURE_ICONS[feature]) for feature, name, entity_id in candidates if entity_id][:8]
+    return [_tile(entity_id, name, FEATURE_ICONS[feature]) for feature, name, entity_id in candidates if entity_id]
 
 
-def _overview_section_cards(entity_ids: EntityMap, entity_metadata: EntityMetadataMap) -> list[DashboardConfig]:
-    """Return clean overview summary cards."""
-    sections = (
-        ("Productie & net", (FEATURE_SOLAR, FEATURE_GRID)),
+def _regie_summary_cards(selected: tuple[str, ...], entity_ids: EntityMap, metadata: EntityMetadataMap) -> list[DashboardConfig]:
+    """Return summary cards for the overview."""
+    definitions = (
+        ("Opwek & net", (FEATURE_SOLAR, FEATURE_GRID)),
         ("Opslag & laden", (FEATURE_BATTERY, FEATURE_EV_CHARGING)),
-        ("Verbruik & prijs", (FEATURE_CONTROLLABLE_LOADS, FEATURE_DYNAMIC_TARIFF)),
+        ("Slim sturen", (FEATURE_CONTROLLABLE_LOADS, FEATURE_DYNAMIC_TARIFF)),
     )
     cards: list[DashboardConfig] = []
-    for title, features in sections:
-        entities = _combined_priority_entities(features, entity_ids, entity_metadata, limit=6)
+    for title, features in definitions:
+        entities = _combined_priority_entities(tuple(f for f in features if f in selected), entity_ids, metadata, limit=6)
         if entities:
-            cards.append(_entities_card(title, entities, entity_metadata))
+            cards.append(_entities_card(title, entities, metadata))
     return cards
 
 
-def _build_feature_view(feature: str, entity_ids: tuple[str, ...], entity_metadata: EntityMetadataMap) -> DashboardConfig:
-    """Build one module view."""
+def _module_view(feature: str, entity_ids: tuple[str, ...], metadata: EntityMetadataMap) -> DashboardConfig:
+    """Build a detail page for one energy-regie part."""
     cards: list[DashboardConfig] = [
-        {"type": "markdown", "content": f"# {_FEATURE_ACCENT[feature]} {_FEATURE_LABELS[feature]}"}
+        {"type": "markdown", "content": f"# {FEATURE_EMOJI[feature]} {FEATURE_LONG_LABELS[feature]}"}
     ]
-    cards.extend(_feature_cards(feature, entity_ids, entity_metadata))
+
+    priority = _priority_entities(feature, entity_ids, metadata)
+    if priority:
+        cards.append({"type": "grid", "title": "Belangrijk", "columns": 3, "square": False, "cards": [_tile(e, _short_name(e, metadata), FEATURE_ICONS[feature]) for e in priority[:6]]})
+
+    groups = _group_entities(entity_ids, metadata)
+    if groups["soc"]:
+        cards.append(_gauge_grid("Laadniveau", groups["soc"], metadata))
+    if groups["power"]:
+        cards.append(_trend_card("Vermogen", groups["power"][:6]))
+    if groups["energy"]:
+        cards.append(_entities_card("Energie", groups["energy"], metadata))
+    if groups["price"]:
+        cards.append(_entities_card("Kosten & tarieven", groups["price"], metadata))
+    if groups["control"]:
+        cards.append(_entities_card("Status & bediening", groups["control"], metadata))
+    if groups["other"]:
+        cards.append(_entities_card("Overig", groups["other"], metadata))
 
     if len(cards) == 1:
-        cards.append({"type": "markdown", "title": _FEATURE_LABELS[feature], "content": "Koppel entiteiten via Opties om hier metingen te tonen."})
+        cards.append({"type": "markdown", "content": "Geen entiteiten gekoppeld. Open Opties om bronnen te selecteren."})
 
-    return {"title": _FEATURE_LABELS[feature], "path": feature.replace("_", "-"), "icon": _FEATURE_ICONS[feature], "cards": cards}
-
-
-def _feature_cards(feature: str, entity_ids: tuple[str, ...], entity_metadata: EntityMetadataMap) -> list[DashboardConfig]:
-    """Build cards for a module."""
-    groups = _group_entities(entity_ids, entity_metadata)
-    cards: list[DashboardConfig] = []
-    primary = _priority_entities(feature, entity_ids, entity_metadata)
-
-    if primary:
-        cards.append(
-            {
-                "type": "grid",
-                "title": "Belangrijkste waarden",
-                "columns": 3,
-                "square": False,
-                "cards": [_tile_card(entity_id, _short_entity_name(entity_id, entity_metadata), _FEATURE_ICONS[feature]) for entity_id in primary[:6]],
-            }
-        )
-    if groups["soc"]:
-        cards.append(_gauge_grid_card("Laadniveau", groups["soc"], entity_metadata))
-    if groups["power"]:
-        cards.append(_statistics_graph_card("Vermogenstrend", groups["power"], days_to_show=1))
-    if groups["energy"]:
-        cards.append(_entities_card("Energie", groups["energy"], entity_metadata))
-    if groups["price"]:
-        cards.append(_entities_card("Tarieven", groups["price"], entity_metadata))
-    if groups["control"]:
-        cards.append(_entities_card("Status en bediening", groups["control"], entity_metadata))
-    if groups["other"]:
-        cards.append(_entities_card("Overige waarden", groups["other"], entity_metadata))
-    return cards
+    return {"title": FEATURE_LABELS[feature], "path": feature.replace("_", "-"), "icon": FEATURE_ICONS[feature], "cards": cards}
 
 
-def _group_entities(entity_ids: tuple[str, ...], entity_metadata: EntityMetadataMap) -> dict[str, list[str]]:
-    """Group entities into dashboard categories."""
-    groups = {"soc": [], "power": [], "price": [], "energy": [], "control": [], "other": []}
+def _group_entities(entity_ids: tuple[str, ...], metadata: EntityMetadataMap) -> dict[str, list[str]]:
+    """Group entities by role."""
+    groups = {"soc": [], "power": [], "energy": [], "price": [], "control": [], "other": []}
     for entity_id in entity_ids:
-        groups[_entity_group(entity_id, entity_metadata.get(entity_id, {}))].append(entity_id)
+        groups[_entity_group(entity_id, metadata.get(entity_id, {}))].append(entity_id)
     return groups
 
 
 def _entity_group(entity_id: str, metadata: EntityMetadata) -> str:
-    """Return the best group for an entity."""
+    """Return the best role for one entity."""
     device_class = metadata.get("device_class")
     unit = str(metadata.get("unit") or "").lower()
     domain = metadata.get("domain") or entity_id.split(".", 1)[0]
-    text = _entity_text(entity_id, metadata)
-
+    text = _text(entity_id, metadata)
     if "soc" in text or unit == "%" or device_class == "battery":
         return "soc"
-    if device_class == "monetary" or any(word in text for word in ("tarief", "price", "cost", "kosten")):
+    if device_class == "monetary" or any(w in text for w in ("tarief", "price", "cost", "kosten")):
         return "price"
     if device_class == "power" or unit in {"w", "kw"}:
         return "power"
@@ -230,113 +262,95 @@ def _entity_group(entity_id: str, metadata: EntityMetadata) -> str:
     return "other"
 
 
-def _first_group(entity_ids: EntityMap, entity_metadata: EntityMetadataMap, feature: str, group: str) -> str | None:
-    """Return the first priority entity for a feature/group."""
-    for entity_id in _priority_entities(feature, entity_ids.get(feature, ()), entity_metadata):
-        if _entity_group(entity_id, entity_metadata.get(entity_id, {})) == group:
+def _first_group(entity_ids: EntityMap, metadata: EntityMetadataMap, feature: str, group: str) -> str | None:
+    """Return first entity from a group."""
+    for entity_id in _priority_entities(feature, entity_ids.get(feature, ()), metadata):
+        if _entity_group(entity_id, metadata.get(entity_id, {})) == group:
             return entity_id
     return None
 
 
-def _priority_entities(feature: str, entity_ids: tuple[str, ...], entity_metadata: EntityMetadataMap) -> list[str]:
-    """Return useful entities in a good visual order."""
-    priority_order = {
+def _priority_entities(feature: str, entity_ids: tuple[str, ...], metadata: EntityMetadataMap) -> list[str]:
+    """Return entities in a useful order."""
+    order = {
         FEATURE_SOLAR: ("power", "energy", "other", "control", "soc", "price"),
-        FEATURE_GRID: ("power", "energy", "other", "price", "control", "soc"),
+        FEATURE_GRID: ("power", "energy", "price", "other", "control", "soc"),
         FEATURE_BATTERY: ("soc", "power", "energy", "other", "control", "price"),
         FEATURE_EV_CHARGING: ("power", "energy", "control", "other", "soc", "price"),
         FEATURE_DYNAMIC_TARIFF: ("price", "other", "energy", "power", "control", "soc"),
         FEATURE_CONTROLLABLE_LOADS: ("power", "energy", "control", "other", "soc", "price"),
     }
-    groups = _group_entities(entity_ids, entity_metadata)
+    groups = _group_entities(entity_ids, metadata)
     result: list[str] = []
-    for group in priority_order[feature]:
+    for group in order[feature]:
         for entity_id in groups[group]:
             if entity_id not in result:
                 result.append(entity_id)
     return result
 
 
-def _combined_priority_entities(features: tuple[str, ...], entity_ids: EntityMap, entity_metadata: EntityMetadataMap, *, limit: int) -> list[str]:
-    """Return compact entities across features."""
+def _combined_priority_entities(features: tuple[str, ...], entity_ids: EntityMap, metadata: EntityMetadataMap, *, limit: int) -> list[str]:
+    """Return priority entities for multiple features."""
     result: list[str] = []
     for feature in features:
-        for entity_id in _priority_entities(feature, entity_ids.get(feature, ()), entity_metadata):
+        for entity_id in _priority_entities(feature, entity_ids.get(feature, ()), metadata):
             if entity_id not in result:
                 result.append(entity_id)
     return result[:limit]
 
 
-def _overview_trend_entities(entity_ids: EntityMap, entity_metadata: EntityMetadataMap) -> list[str]:
-    """Return a few entities for the overview trend graph."""
+def _overview_trend_entities(entity_ids: EntityMap, metadata: EntityMetadataMap) -> list[str]:
+    """Return entities for the overview trend."""
     result: list[str] = []
     for feature in (FEATURE_SOLAR, FEATURE_GRID, FEATURE_BATTERY, FEATURE_CONTROLLABLE_LOADS):
-        entity_id = _first_group(entity_ids, entity_metadata, feature, "power")
+        entity_id = _first_group(entity_ids, metadata, feature, "power")
         if entity_id:
             result.append(entity_id)
     return result[:6]
 
 
-def _entity_text(entity_id: str, metadata: EntityMetadata) -> str:
-    """Return searchable text for an entity."""
-    return " ".join(str(value) for value in (entity_id, metadata.get("friendly_name"), metadata.get("device_class"), metadata.get("unit")) if value).lower()
+def _text(entity_id: str, metadata: EntityMetadata) -> str:
+    """Return searchable text."""
+    return " ".join(str(v) for v in (entity_id, metadata.get("friendly_name"), metadata.get("device_class"), metadata.get("unit")) if v).lower()
 
 
-def _source_name(entity_id: str, metadata: EntityMetadata) -> str | None:
-    """Infer a compact source name."""
-    text = _entity_text(entity_id, metadata)
-    for needle, label in (
-        ("solaredge", "SolarEdge"),
-        ("solarman-pv1", "PV1"),
-        ("solarman-pv2", "PV2"),
-        ("solarman-pv3", "PV3"),
-        ("solarman-pv4", "PV4"),
-        ("solarman", "Solarman"),
-        ("alpha ess", "Alpha ESS"),
-        ("zinvolt", "ZinVolt"),
-        ("p1 meter", "P1"),
-        ("p1_", "P1"),
-        ("p1 ", "P1"),
-        ("passat", "Passat"),
-        ("wasmachine", "Wasmachine"),
-        ("droger", "Droger"),
-        ("koelkast", "Koelkast"),
-        ("vriezer", "Vriezer"),
-        ("lava", "Lava"),
-    ):
+def _source(entity_id: str, metadata: EntityMetadata) -> str | None:
+    """Infer compact source label."""
+    text = _text(entity_id, metadata)
+    for needle, label in (("solaredge", "SolarEdge"), ("solarman-pv1", "PV1"), ("solarman-pv2", "PV2"), ("solarman-pv3", "PV3"), ("solarman-pv4", "PV4"), ("alpha ess", "Alpha ESS"), ("zinvolt", "ZinVolt"), ("p1", "P1"), ("passat", "Passat"), ("wasmachine", "Wasmachine"), ("droger", "Droger"), ("koelkast", "Koelkast"), ("vriezer", "Vriezer"), ("lava", "Lava")):
         if needle in text:
             return label
     return None
 
 
-def _role_name(entity_id: str, metadata: EntityMetadata) -> str:
-    """Infer a compact role name."""
-    text = _entity_text(entity_id, metadata)
+def _role(entity_id: str, metadata: EntityMetadata) -> str:
+    """Infer compact role label."""
+    text = _text(entity_id, metadata)
     group = _entity_group(entity_id, metadata)
     if group == "soc":
         return "SOC"
     if group == "price":
-        return "Kosten" if "cost" in text else "Prijs"
+        return "kosten" if "cost" in text else "prijs"
     if group == "power":
-        if any(word in text for word in ("charge", "laden", "laad")):
+        if any(w in text for w in ("charge", "laad", "laden")):
             return "laden"
-        if any(word in text for word in ("discharge", "ontladen", "ontlaad")):
+        if any(w in text for w in ("discharge", "ontlaad", "ontladen")):
             return "ontladen"
-        if any(word in text for word in ("import", "afname")):
+        if any(w in text for w in ("import", "afname")):
             return "afname"
-        if any(word in text for word in ("export", "teruglever")):
+        if any(w in text for w in ("export", "teruglever")):
             return "teruglevering"
         return "vermogen"
     if group == "energy":
-        if any(word in text for word in ("today", "vandaag")):
+        if any(w in text for w in ("today", "vandaag")):
             return "vandaag"
-        if any(word in text for word in ("charge", "laden", "laad")):
+        if any(w in text for w in ("charge", "laad", "laden")):
             return "laden"
-        if any(word in text for word in ("discharge", "ontladen", "ontlaad")):
+        if any(w in text for w in ("discharge", "ontlaad", "ontladen")):
             return "ontladen"
-        if any(word in text for word in ("import", "afname")):
+        if any(w in text for w in ("import", "afname")):
             return "import"
-        if any(word in text for word in ("export", "teruglever")):
+        if any(w in text for w in ("export", "teruglever")):
             return "export"
         return "energie"
     if group == "control":
@@ -344,53 +358,36 @@ def _role_name(entity_id: str, metadata: EntityMetadata) -> str:
     return str(metadata.get("friendly_name") or entity_id)
 
 
-def _short_entity_name(entity_id: str, entity_metadata: EntityMetadataMap) -> str:
+def _short_name(entity_id: str, metadata: EntityMetadataMap) -> str:
     """Return a short display name."""
-    metadata = entity_metadata.get(entity_id, {})
-    source = _source_name(entity_id, metadata)
-    role = _role_name(entity_id, metadata)
+    item = metadata.get(entity_id, {})
+    source = _source(entity_id, item)
+    role = _role(entity_id, item)
     if source:
-        return f"{source} {role}" if role not in source.lower() else source
+        return f"{source} {role}"
     return role.capitalize() if len(role) < 20 else role
 
 
-def _entity_entry(entity_id: str, name: str) -> dict[str, str]:
+def _entity_entry(entity_id: str, metadata: EntityMetadataMap) -> dict[str, str]:
     """Return a named entity entry."""
-    return {"entity": entity_id, "name": name}
+    return {"entity": entity_id, "name": _short_name(entity_id, metadata)}
 
 
-def _tile_card(entity_id: str, name: str, icon: str) -> DashboardConfig:
-    """Return a compact tile card."""
-    return {"type": "tile", "entity": entity_id, "name": name, "icon": icon, "vertical": False, "hide_state": False}
+def _tile(entity_id: str, name: str, icon: str) -> DashboardConfig:
+    """Return a tile card."""
+    return {"type": "tile", "entity": entity_id, "name": name, "icon": icon, "vertical": False}
 
 
-def _statistics_graph_card(title: str, entity_ids: list[str], *, days_to_show: int) -> DashboardConfig:
-    """Return a smoother statistics graph."""
-    return {
-        "type": "statistics-graph",
-        "title": title,
-        "chart_type": "line",
-        "days_to_show": days_to_show,
-        "period": "5minute",
-        "stat_types": ["mean"],
-        "entities": entity_ids,
-    }
+def _trend_card(title: str, entity_ids: list[str]) -> DashboardConfig:
+    """Return a smoother native trend card."""
+    return {"type": "statistics-graph", "title": title, "chart_type": "line", "days_to_show": 1, "period": "5minute", "stat_types": ["mean"], "entities": entity_ids}
 
 
-def _gauge_grid_card(title: str, entity_ids: list[str], entity_metadata: EntityMetadataMap) -> DashboardConfig:
-    """Return a grid of gauge cards."""
-    return {
-        "type": "grid",
-        "title": title,
-        "columns": 2,
-        "square": False,
-        "cards": [
-            {"type": "gauge", "entity": entity_id, "name": _short_entity_name(entity_id, entity_metadata), "min": 0, "max": 100, "severity": {"green": 50, "yellow": 20, "red": 0}}
-            for entity_id in entity_ids[:6]
-        ],
-    }
+def _gauge_grid(title: str, entity_ids: list[str], metadata: EntityMetadataMap) -> DashboardConfig:
+    """Return SOC gauges."""
+    return {"type": "grid", "title": title, "columns": 2, "square": False, "cards": [{"type": "gauge", "entity": entity_id, "name": _short_name(entity_id, metadata), "min": 0, "max": 100, "severity": {"green": 50, "yellow": 20, "red": 0}} for entity_id in entity_ids[:6]]}
 
 
-def _entities_card(title: str, entity_ids: list[str], entity_metadata: EntityMetadataMap) -> DashboardConfig:
-    """Return an entities card with compact names."""
-    return {"type": "entities", "title": title, "show_header_toggle": False, "state_color": True, "entities": [_entity_entry(entity_id, _short_entity_name(entity_id, entity_metadata)) for entity_id in entity_ids]}
+def _entities_card(title: str, entity_ids: list[str], metadata: EntityMetadataMap) -> DashboardConfig:
+    """Return entities with compact names."""
+    return {"type": "entities", "title": title, "show_header_toggle": False, "state_color": True, "entities": [_entity_entry(entity_id, metadata) for entity_id in entity_ids]}
