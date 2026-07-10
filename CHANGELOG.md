@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.10
+
+- Verbetert de korte labels voor dynamische prijzen, tarieven en kosten.
+- Zet prijsentiteiten om naar duidelijke namen zoals `Prijs nu`, `Prijs straks`, `Laagste vandaag`, `Piek start` en `Dalperiode actief`.
+- Herkent kostenentiteiten beter als afname-, teruglever- of laadkosten.
+
 ## 0.1.9
 
 - Bouwt het dashboard opnieuw op rond het eerder ontworpen energie-regie concept.
