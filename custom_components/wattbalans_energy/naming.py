@@ -9,13 +9,15 @@ EntityMetadataMap = dict[str, EntityMetadata]
 
 
 def entity_text(entity_id: str, metadata: EntityMetadata | None = None) -> str:
-    """Return searchable text for an entity."""
+    """Return searchable text for an entity and its original source."""
     metadata = metadata or {}
     return " ".join(
         str(value)
         for value in (
             entity_id,
             metadata.get("friendly_name"),
+            metadata.get("source_entity_id"),
+            metadata.get("source_friendly_name"),
             metadata.get("device_class"),
             metadata.get("unit"),
         )
@@ -33,11 +35,6 @@ def entity_group(entity_id: str, metadata: EntityMetadata | None = None) -> str:
 
     if price_label(text) is not None:
         return "price"
-    if battery_label(text) is not None:
-        if any(word in text for word in ("soc", "state of charge", "%")) or unit == "%":
-            return "soc"
-        if any(word in text for word in ("capacity", "capaciteit")):
-            return "energy"
     if "soc" in text or unit == "%" or device_class == "battery":
         return "soc"
     if device_class == "monetary" or any(
@@ -59,9 +56,14 @@ def source_label(entity_id: str, metadata: EntityMetadata | None = None) -> str 
     for needle, label in (
         ("solaredge", "SolarEdge"),
         ("solarman-pv1", "PV1"),
+        ("solarman_pv1", "PV1"),
         ("solarman-pv2", "PV2"),
+        ("solarman_pv2", "PV2"),
         ("solarman-pv3", "PV3"),
+        ("solarman_pv3", "PV3"),
         ("solarman-pv4", "PV4"),
+        ("solarman_pv4", "PV4"),
+        ("solarman", "Solarman"),
         ("alpha ess", "Alpha ESS"),
         ("alpha_ess", "Alpha ESS"),
         ("alphaess", "Alpha ESS"),
@@ -81,7 +83,7 @@ def source_label(entity_id: str, metadata: EntityMetadata | None = None) -> str 
     return None
 
 
-def battery_label(text: str) -> str | None:
+def battery_label(text: str, unit: str = "") -> str | None:
     """Infer short battery labels from entity text."""
     if not any(
         word in text
@@ -113,13 +115,13 @@ def battery_label(text: str) -> str | None:
     if "capacity" in text or "capaciteit" in text:
         return "capaciteit"
     if any(word in text for word in ("discharge", "ontladen", "ontlaad")):
-        if any(word in text for word in ("energy", "energie", "kwh")):
-            return "ontladen"
-        return "ontlaadvermogen"
+        if unit in {"w", "kw"} or "power" in text or "vermogen" in text:
+            return "ontlaadvermogen"
+        return "ontladen energie"
     if any(word in text for word in ("charge", "laden", "laad")):
-        if any(word in text for word in ("energy", "energie", "kwh")):
-            return "laden"
-        return "laadvermogen"
+        if unit in {"w", "kw"} or "power" in text or "vermogen" in text:
+            return "laadvermogen"
+        return "geladen energie"
     if "power" in text or "vermogen" in text:
         return "vermogen"
     return None
@@ -152,7 +154,7 @@ def price_label(text: str) -> str | None:
     if "volgende prijs" in text:
         return "Prijs straks"
     if "beste prijsperiode actief" in text:
-        return "Dalperiode actief"
+        return "Dal actief"
     if "beste prijs start over" in text:
         return "Dalstart over"
     if "beste prijs start" in text:
@@ -173,16 +175,20 @@ def price_label(text: str) -> str | None:
         return "Piekperiode"
     if "dynamic energy cost" in text or "cost" in text or "kosten" in text:
         if any(word in text for word in ("export", "teruglever")):
-            return "kosten teruglevering"
+            return "terugleverkosten"
         if any(word in text for word in ("import", "afname", "netafname")):
-            return "kosten afname"
+            return "afnamekosten"
         if any(word in text for word in ("laadvermogen", "charging", "laden")):
             return "laadkosten"
         return "kosten"
     if "tarief" in text:
-        return "Tarief"
+        if "tarief 1" in text:
+            return "tarief 1"
+        if "tarief 2" in text:
+            return "tarief 2"
+        return "tarief"
     if "prijs" in text or "price" in text:
-        return "Prijs"
+        return "prijs"
     return None
 
 
@@ -190,12 +196,13 @@ def role_label(entity_id: str, metadata: EntityMetadata | None = None) -> str:
     """Infer a compact role label."""
     metadata = metadata or {}
     text = entity_text(entity_id, metadata)
+    unit = str(metadata.get("unit") or "").lower()
 
     price = price_label(text)
     if price is not None:
         return price
 
-    battery = battery_label(text)
+    battery = battery_label(text, unit)
     if battery is not None:
         return battery
 
@@ -204,9 +211,9 @@ def role_label(entity_id: str, metadata: EntityMetadata | None = None) -> str:
         return "SOC"
     if group == "power":
         if any(word in text for word in ("charge", "laad", "laden")):
-            return "laden"
+            return "laadvermogen"
         if any(word in text for word in ("discharge", "ontlaad", "ontladen")):
-            return "ontladen"
+            return "ontlaadvermogen"
         if any(word in text for word in ("import", "afname")):
             return "afname"
         if any(word in text for word in ("export", "teruglever")):
@@ -216,9 +223,9 @@ def role_label(entity_id: str, metadata: EntityMetadata | None = None) -> str:
         if any(word in text for word in ("today", "vandaag")):
             return "vandaag"
         if any(word in text for word in ("charge", "laad", "laden")):
-            return "laden"
+            return "geladen energie"
         if any(word in text for word in ("discharge", "ontlaad", "ontladen")):
-            return "ontladen"
+            return "ontladen energie"
         if any(word in text for word in ("import", "afname")):
             return "import"
         if any(word in text for word in ("export", "teruglever")):
@@ -226,23 +233,22 @@ def role_label(entity_id: str, metadata: EntityMetadata | None = None) -> str:
         return "energie"
     if group == "control":
         return "status"
-    return str(metadata.get("friendly_name") or entity_id)
+    return str(metadata.get("source_friendly_name") or metadata.get("friendly_name") or entity_id)
 
 
 def friendly_label(entity_id: str, metadata: EntityMetadata | None = None) -> str:
     """Return a short WattBalans display name for an entity."""
     metadata = metadata or {}
-    text = entity_text(entity_id, metadata)
-    source = source_label(entity_id, metadata)
     role = role_label(entity_id, metadata)
+    source = source_label(entity_id, metadata)
 
-    if role in {"Laagste SOC", "Gemiddelde SOC"}:
+    if role in {"Laagste SOC", "Gemiddelde SOC", "Prijs nu", "Prijs nu incl.", "Prijs straks", "Laagste vandaag", "Hoogste vandaag", "Gemiddelde vandaag", "Volatiliteit", "Dal actief", "Piek actief"}:
         return role
     if source and role.lower() not in source.lower():
         return f"{source} {role}"
     if source:
         return source
-    return role.capitalize() if len(role) < 24 else role
+    return role.capitalize() if len(role) < 28 else role
 
 
 def metadata_from_state(entity_id: str, state: Any) -> EntityMetadata:
@@ -251,6 +257,8 @@ def metadata_from_state(entity_id: str, state: Any) -> EntityMetadata:
         "device_class": state.attributes.get("device_class") if state else None,
         "domain": entity_id.split(".", 1)[0],
         "friendly_name": state.attributes.get("friendly_name") if state else None,
+        "source_entity_id": state.attributes.get("source_entity_id") if state else None,
+        "source_friendly_name": state.attributes.get("source_friendly_name") if state else None,
         "state_class": state.attributes.get("state_class") if state else None,
         "unit": state.attributes.get("unit_of_measurement") if state else None,
     }
