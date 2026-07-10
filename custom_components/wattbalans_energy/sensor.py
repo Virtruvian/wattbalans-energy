@@ -155,6 +155,7 @@ class WattBalansSourceSensor(SensorEntity):
         self._hass = hass
         self._feature = feature
         self._source_entity_id = source_entity_id
+        self._source_friendly_name: str | None = None
         self._attr_unique_id = f"{entry.entry_id}_{feature}_{source_entity_id.replace('.', '_')}"
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
@@ -167,10 +168,13 @@ class WattBalansSourceSensor(SensorEntity):
     @property
     def extra_state_attributes(self) -> dict[str, str]:
         """Return metadata linking this entity to the original source."""
-        return {
+        attrs = {
             "source_entity_id": self._source_entity_id,
             "wattbalans_feature": self._feature,
         }
+        if self._source_friendly_name:
+            attrs["source_friendly_name"] = self._source_friendly_name
+        return attrs
 
     async def async_added_to_hass(self) -> None:
         """Subscribe to source entity updates."""
@@ -195,6 +199,7 @@ class WattBalansSourceSensor(SensorEntity):
         label = friendly_label(self._source_entity_id, metadata)
         group = entity_group(self._source_entity_id, metadata)
 
+        self._source_friendly_name = state.attributes.get("friendly_name") if state else None
         self._attr_name = f"WattBalans {label}"
         self._attr_icon = GROUP_ICONS.get(group, FEATURE_ICONS.get(self._feature, "mdi:chart-line"))
 
