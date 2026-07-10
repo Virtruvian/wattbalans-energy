@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterable, Mapping
 from typing import Any, TypedDict
 
@@ -13,6 +14,7 @@ from .const import (
     FEATURE_GRID,
     FEATURE_SOLAR,
 )
+from .naming import entity_group, entity_text, friendly_label, role_label, source_label
 
 DashboardConfig = dict[str, Any]
 EntityMap = Mapping[str, tuple[str, ...]]
@@ -24,6 +26,8 @@ class EntityMetadata(TypedDict, total=False):
     device_class: str | None
     domain: str
     friendly_name: str | None
+    source_entity_id: str | None
+    source_friendly_name: str | None
     state_class: str | None
     unit: str | None
 
@@ -110,8 +114,7 @@ def _overview_view(
             "type": "markdown",
             "content": (
                 "# Energie regie\n\n"
-                "Overzicht van opwek, verbruik, opslag, laden, net en kosten. "
-                "De onderdelen hieronder worden automatisch opgebouwd uit de modules die aanwezig zijn."
+                "Overzicht van opwek, verbruik, opslag, laden, net en kosten."
             ),
         },
         _flow_card(selected, entity_ids, metadata),
@@ -133,7 +136,7 @@ def _overview_view(
 
 
 def _flow_card(selected: tuple[str, ...], entity_ids: EntityMap, metadata: EntityMetadataMap) -> DashboardConfig:
-    """Build a simple, readable native flowchart."""
+    """Build a simple native flowchart with clean labels."""
     nodes = {
         FEATURE_SOLAR: _flow_node(FEATURE_SOLAR, _first_group(entity_ids, metadata, FEATURE_SOLAR, "power"), metadata),
         FEATURE_GRID: _flow_node(FEATURE_GRID, _first_group(entity_ids, metadata, FEATURE_GRID, "power"), metadata),
@@ -164,7 +167,7 @@ def _flow_card(selected: tuple[str, ...], entity_ids: EntityMap, metadata: Entit
             f"        ├──▶ {ev}\n"
             f"        ├──↔ {battery}\n"
             f"        └──↔ {grid}\n\n"
-            f"Regie op basis van: {cost}\n"
+            f"Regie: {cost}\n"
             "```"
         ),
     }
@@ -173,7 +176,7 @@ def _flow_card(selected: tuple[str, ...], entity_ids: EntityMap, metadata: Entit
 def _flow_node(feature: str, entity_id: str | None, metadata: EntityMetadataMap) -> str:
     """Return a compact text node for the flowchart."""
     label = f"{FEATURE_EMOJI[feature]} {FEATURE_LABELS[feature]}"
-    return f"{label}\n{_short_name(entity_id, metadata) if entity_id else 'geen bron'}"
+    return f"{label}\n{_display_name(entity_id, metadata) if entity_id else 'geen bron'}"
 
 
 def _kpi_cards(entity_ids: EntityMap, metadata: EntityMetadataMap) -> list[DashboardConfig]:
@@ -213,7 +216,7 @@ def _module_view(feature: str, entity_ids: tuple[str, ...], metadata: EntityMeta
 
     priority = _priority_entities(feature, entity_ids, metadata)
     if priority:
-        cards.append({"type": "grid", "title": "Belangrijk", "columns": 3, "square": False, "cards": [_tile(e, _short_name(e, metadata), FEATURE_ICONS[feature]) for e in priority[:6]]})
+        cards.append({"type": "grid", "title": "Belangrijk", "columns": 3, "square": False, "cards": [_tile(e, _display_name(e, metadata), FEATURE_ICONS[feature]) for e in priority[:6]]})
 
     groups = _group_entities(entity_ids, metadata)
     if groups["soc"]:
@@ -239,35 +242,14 @@ def _group_entities(entity_ids: tuple[str, ...], metadata: EntityMetadataMap) ->
     """Group entities by role."""
     groups = {"soc": [], "power": [], "energy": [], "price": [], "control": [], "other": []}
     for entity_id in entity_ids:
-        groups[_entity_group(entity_id, metadata.get(entity_id, {}))].append(entity_id)
+        groups[entity_group(entity_id, metadata.get(entity_id, {}))].append(entity_id)
     return groups
-
-
-def _entity_group(entity_id: str, metadata: EntityMetadata) -> str:
-    """Return the best role for one entity."""
-    device_class = metadata.get("device_class")
-    unit = str(metadata.get("unit") or "").lower()
-    domain = metadata.get("domain") or entity_id.split(".", 1)[0]
-    text = _text(entity_id, metadata)
-    if _price_label(text) is not None:
-        return "price"
-    if "soc" in text or unit == "%" or device_class == "battery":
-        return "soc"
-    if device_class == "monetary" or any(w in text for w in ("tarief", "price", "prijs", "cost", "kosten")):
-        return "price"
-    if device_class == "power" or unit in {"w", "kw"}:
-        return "power"
-    if device_class == "energy" or unit in {"wh", "kwh"}:
-        return "energy"
-    if domain in {"switch", "binary_sensor"}:
-        return "control"
-    return "other"
 
 
 def _first_group(entity_ids: EntityMap, metadata: EntityMetadataMap, feature: str, group: str) -> str | None:
     """Return first entity from a group."""
     for entity_id in _priority_entities(feature, entity_ids.get(feature, ()), metadata):
-        if _entity_group(entity_id, metadata.get(entity_id, {})) == group:
+        if entity_group(entity_id, metadata.get(entity_id, {})) == group:
             return entity_id
     return None
 
@@ -311,132 +293,56 @@ def _overview_trend_entities(entity_ids: EntityMap, metadata: EntityMetadataMap)
     return result[:6]
 
 
-def _text(entity_id: str, metadata: EntityMetadata) -> str:
-    """Return searchable text."""
-    return " ".join(str(v) for v in (entity_id, metadata.get("friendly_name"), metadata.get("device_class"), metadata.get("unit")) if v).lower()
-
-
-def _source(entity_id: str, metadata: EntityMetadata) -> str | None:
-    """Infer compact source label."""
-    text = _text(entity_id, metadata)
-    for needle, label in (("solaredge", "SolarEdge"), ("solarman-pv1", "PV1"), ("solarman-pv2", "PV2"), ("solarman-pv3", "PV3"), ("solarman-pv4", "PV4"), ("alpha ess", "Alpha ESS"), ("zinvolt", "ZinVolt"), ("p1", "P1"), ("passat", "Passat"), ("wasmachine", "Wasmachine"), ("droger", "Droger"), ("koelkast", "Koelkast"), ("vriezer", "Vriezer"), ("lava", "Lava")):
-        if needle in text:
-            return label
-    return None
-
-
-def _price_label(text: str) -> str | None:
-    """Infer short tariff/cost labels from entity text."""
-    if not any(word in text for word in ("prijs", "price", "tarief", "cost", "kosten", "volatiliteit", "piek", "beste")):
-        return None
-
-    if "prijsvolatiliteit" in text or "volatiliteit" in text:
-        return "Volatiliteit"
-    if "laagste" in text:
-        return "Laagste vandaag"
-    if "hoogste" in text:
-        return "Hoogste vandaag"
-    if "gemiddelde prijs vandaag" in text or ("gemiddelde" in text and "vandaag" in text):
-        return "Gemiddelde vandaag"
-    if "gemiddelde uurprijs huidig" in text or ("uurprijs" in text and "huidig" in text):
-        return "Uurprijs nu"
-    if "gemiddelde uurprijs volgend" in text or ("uurprijs" in text and "volgend" in text):
-        return "Uurprijs straks"
-    if "huidige prijs incl" in text:
-        return "Prijs nu incl."
-    if "huidige prijs" in text:
-        return "Prijs nu"
-    if "volgende prijs" in text:
-        return "Prijs straks"
-
-    if "beste prijsperiode actief" in text:
-        return "Dalperiode actief"
-    if "beste prijs start over" in text:
-        return "Dalstart over"
-    if "beste prijs start" in text:
-        return "Dalstart"
-    if "beste prijs einde" in text:
-        return "Daleinde"
-    if "beste prijs" in text:
-        return "Dalperiode"
-
-    if "piekprijsperiode actief" in text:
-        return "Piek actief"
-    if "piekprijs start over" in text:
-        return "Piek over"
-    if "piekprijs start" in text:
-        return "Piek start"
-    if "piekprijs einde" in text:
-        return "Piek einde"
-    if "piekprijs" in text:
-        return "Piekperiode"
-
-    if "dynamic energy cost" in text or "cost" in text or "kosten" in text:
-        if any(word in text for word in ("export", "teruglever")):
-            return "kosten teruglevering"
-        if any(word in text for word in ("import", "afname", "netafname")):
-            return "kosten afname"
-        if any(word in text for word in ("laadvermogen", "charging", "laden")):
-            return "laadkosten"
-        return "kosten"
-
-    if "tarief" in text:
-        return "Tarief"
-    if "prijs" in text or "price" in text:
-        return "Prijs"
-    return None
-
-
-def _role(entity_id: str, metadata: EntityMetadata) -> str:
-    """Infer compact role label."""
-    text = _text(entity_id, metadata)
-    price_label = _price_label(text)
-    if price_label is not None:
-        return price_label
-
-    group = _entity_group(entity_id, metadata)
-    if group == "soc":
-        return "SOC"
-    if group == "power":
-        if any(w in text for w in ("charge", "laad", "laden")):
-            return "laden"
-        if any(w in text for w in ("discharge", "ontlaad", "ontladen")):
-            return "ontladen"
-        if any(w in text for w in ("import", "afname")):
-            return "afname"
-        if any(w in text for w in ("export", "teruglever")):
-            return "teruglevering"
-        return "vermogen"
-    if group == "energy":
-        if any(w in text for w in ("today", "vandaag")):
-            return "vandaag"
-        if any(w in text for w in ("charge", "laad", "laden")):
-            return "laden"
-        if any(w in text for w in ("discharge", "ontlaad", "ontladen")):
-            return "ontladen"
-        if any(w in text for w in ("import", "afname")):
-            return "import"
-        if any(w in text for w in ("export", "teruglever")):
-            return "export"
-        return "energie"
-    if group == "control":
-        return "status"
-    return str(metadata.get("friendly_name") or entity_id)
-
-
-def _short_name(entity_id: str, metadata: EntityMetadataMap) -> str:
-    """Return a short display name."""
+def _display_name(entity_id: str, metadata: EntityMetadataMap) -> str:
+    """Return the best dashboard display name for one entity."""
     item = metadata.get(entity_id, {})
-    source = _source(entity_id, item)
-    role = _role(entity_id, item)
-    if source and role.lower() not in source.lower():
-        return f"{source} {role}"
-    return role.capitalize() if len(role) < 20 else role
+    label = friendly_label(entity_id, item)
+    for prefix in ("WattBalans Energy Management ", "WattBalans "):
+        if label.startswith(prefix):
+            label = label.removeprefix(prefix)
+    return label
 
 
-def _entity_entry(entity_id: str, metadata: EntityMetadataMap) -> dict[str, str]:
-    """Return a named entity entry."""
-    return {"entity": entity_id, "name": _short_name(entity_id, metadata)}
+def _entity_entries(entity_ids: list[str], metadata: EntityMetadataMap) -> list[dict[str, str]]:
+    """Return entity entries with unique, human-friendly names."""
+    base_names = [_display_name(entity_id, metadata) for entity_id in entity_ids]
+    counts = Counter(base_names)
+    seen: Counter[str] = Counter()
+    entries: list[dict[str, str]] = []
+
+    for entity_id, base_name in zip(entity_ids, base_names, strict=True):
+        seen[base_name] += 1
+        name = base_name
+        if counts[base_name] > 1:
+            suffix = _duplicate_suffix(entity_id, metadata.get(entity_id, {}), seen[base_name])
+            name = f"{base_name} {suffix}" if suffix else f"{base_name} {seen[base_name]}"
+        entries.append({"entity": entity_id, "name": name})
+
+    return entries
+
+
+def _duplicate_suffix(entity_id: str, metadata: EntityMetadata, index: int) -> str:
+    """Return a useful suffix for duplicate labels."""
+    text = entity_text(entity_id, metadata)
+    unit = str(metadata.get("unit") or "").lower()
+    source = source_label(entity_id, metadata)
+    role = role_label(entity_id, metadata)
+
+    if "tarief 1" in text:
+        return "T1"
+    if "tarief 2" in text:
+        return "T2"
+    if "huidig" in text or "current" in text:
+        return "nu"
+    if "volgend" in text or "next" in text:
+        return "straks"
+    if unit in {"w", "kw"} and "vermogen" not in role:
+        return "vermogen"
+    if unit in {"wh", "kwh"} and "energie" not in role:
+        return "energie"
+    if source:
+        return str(index)
+    return str(index)
 
 
 def _tile(entity_id: str, name: str, icon: str) -> DashboardConfig:
@@ -451,9 +357,9 @@ def _trend_card(title: str, entity_ids: list[str]) -> DashboardConfig:
 
 def _gauge_grid(title: str, entity_ids: list[str], metadata: EntityMetadataMap) -> DashboardConfig:
     """Return SOC gauges."""
-    return {"type": "grid", "title": title, "columns": 2, "square": False, "cards": [{"type": "gauge", "entity": entity_id, "name": _short_name(entity_id, metadata), "min": 0, "max": 100, "severity": {"green": 50, "yellow": 20, "red": 0}} for entity_id in entity_ids[:6]]}
+    return {"type": "grid", "title": title, "columns": 2, "square": False, "cards": [{"type": "gauge", "entity": entity_id, "name": _display_name(entity_id, metadata), "min": 0, "max": 100, "severity": {"green": 50, "yellow": 20, "red": 0}} for entity_id in entity_ids[:6]]}
 
 
 def _entities_card(title: str, entity_ids: list[str], metadata: EntityMetadataMap) -> DashboardConfig:
-    """Return entities with compact names."""
-    return {"type": "entities", "title": title, "show_header_toggle": False, "state_color": True, "entities": [_entity_entry(entity_id, metadata) for entity_id in entity_ids]}
+    """Return entities with compact unique names."""
+    return {"type": "entities", "title": title, "show_header_toggle": False, "state_color": True, "entities": _entity_entries(entity_ids, metadata)}
