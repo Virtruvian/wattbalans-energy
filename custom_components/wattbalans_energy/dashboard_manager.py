@@ -31,7 +31,7 @@ DASHBOARD_TITLE = "WattBalans Energy"
 DASHBOARD_URL_PATH = "wattbalans-energy"
 DASHBOARD_ICON = "mdi:home-lightning-bolt"
 _MANAGED_MARKER = "wattbalans_energy"
-_MANAGED_VERSION = 8
+_MANAGED_VERSION = 9
 
 ConfiguredEntities = Mapping[str, Sequence[str] | Mapping[str, str]]
 
@@ -195,10 +195,18 @@ def _entity_metadata(
         for entity_id in entity_ids:
             state = hass.states.get(entity_id)
             domain = entity_id.split(".", 1)[0]
+            source_entity_id = state.attributes.get("source_entity_id") if state else None
+            source_state = hass.states.get(source_entity_id) if source_entity_id else None
             metadata[entity_id] = {
                 "device_class": state.attributes.get("device_class") if state else None,
                 "domain": domain,
                 "friendly_name": state.attributes.get("friendly_name") if state else None,
+                "source_entity_id": source_entity_id,
+                "source_friendly_name": (
+                    source_state.attributes.get("friendly_name")
+                    if source_state
+                    else state.attributes.get("source_friendly_name") if state else None
+                ),
                 "state_class": state.attributes.get("state_class") if state else None,
                 "unit": state.attributes.get("unit_of_measurement") if state else None,
             }
