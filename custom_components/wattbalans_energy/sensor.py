@@ -7,7 +7,7 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorEntity, SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_DEVICE_CLASS, CONF_STATE_CLASS, EntityCategory
+from homeassistant.const import EntityCategory
 from homeassistant.core import Event, HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
@@ -207,5 +207,5 @@ class WattBalansSourceSensor(SensorEntity):
 
         self._attr_native_value = state.state
         self._attr_native_unit_of_measurement = state.attributes.get("unit_of_measurement")
-        self._attr_device_class = state.attributes.get(CONF_DEVICE_CLASS)
-        self._attr_state_class = state.attributes.get(CONF_STATE_CLASS)
+        self._attr_device_class = state.attributes.get("device_class")
+        self._attr_state_class = state.attributes.get("state_class")
