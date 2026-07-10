@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.13
+
+- Laat het automatisch gegenereerde dashboard de nieuwe `WattBalans ...` mirror-entiteiten gebruiken wanneer die beschikbaar zijn.
+- Valt terug op de originele bronentiteiten als een mirror-entiteit nog niet bestaat.
+- Verhoogt de managed dashboardversie zodat het dashboard opnieuw wordt opgebouwd.
+
 ## 0.1.12
 
 - Voegt gedeelde WattBalans naamherkenning toe voor batterij-, prijs-, energie- en vermogensentiteiten.
