@@ -135,12 +135,12 @@ def _overview_view(
 def _flow_card(selected: tuple[str, ...], entity_ids: EntityMap, metadata: EntityMetadataMap) -> DashboardConfig:
     """Build a simple, readable native flowchart."""
     nodes = {
-        FEATURE_SOLAR: _flow_node(FEATURE_SOLAR, _first_group(entity_ids, metadata, FEATURE_SOLAR, "power")),
-        FEATURE_GRID: _flow_node(FEATURE_GRID, _first_group(entity_ids, metadata, FEATURE_GRID, "power")),
-        FEATURE_BATTERY: _flow_node(FEATURE_BATTERY, _first_group(entity_ids, metadata, FEATURE_BATTERY, "soc") or _first_group(entity_ids, metadata, FEATURE_BATTERY, "power")),
-        FEATURE_EV_CHARGING: _flow_node(FEATURE_EV_CHARGING, _first_group(entity_ids, metadata, FEATURE_EV_CHARGING, "power")),
-        FEATURE_DYNAMIC_TARIFF: _flow_node(FEATURE_DYNAMIC_TARIFF, _first_group(entity_ids, metadata, FEATURE_DYNAMIC_TARIFF, "price")),
-        FEATURE_CONTROLLABLE_LOADS: _flow_node(FEATURE_CONTROLLABLE_LOADS, _first_group(entity_ids, metadata, FEATURE_CONTROLLABLE_LOADS, "power")),
+        FEATURE_SOLAR: _flow_node(FEATURE_SOLAR, _first_group(entity_ids, metadata, FEATURE_SOLAR, "power"), metadata),
+        FEATURE_GRID: _flow_node(FEATURE_GRID, _first_group(entity_ids, metadata, FEATURE_GRID, "power"), metadata),
+        FEATURE_BATTERY: _flow_node(FEATURE_BATTERY, _first_group(entity_ids, metadata, FEATURE_BATTERY, "soc") or _first_group(entity_ids, metadata, FEATURE_BATTERY, "power"), metadata),
+        FEATURE_EV_CHARGING: _flow_node(FEATURE_EV_CHARGING, _first_group(entity_ids, metadata, FEATURE_EV_CHARGING, "power"), metadata),
+        FEATURE_DYNAMIC_TARIFF: _flow_node(FEATURE_DYNAMIC_TARIFF, _first_group(entity_ids, metadata, FEATURE_DYNAMIC_TARIFF, "price"), metadata),
+        FEATURE_CONTROLLABLE_LOADS: _flow_node(FEATURE_CONTROLLABLE_LOADS, _first_group(entity_ids, metadata, FEATURE_CONTROLLABLE_LOADS, "power"), metadata),
     }
 
     solar = nodes[FEATURE_SOLAR] if FEATURE_SOLAR in selected else "☀️ Zon\n_niet aanwezig_"
@@ -170,10 +170,10 @@ def _flow_card(selected: tuple[str, ...], entity_ids: EntityMap, metadata: Entit
     }
 
 
-def _flow_node(feature: str, entity_id: str | None) -> str:
+def _flow_node(feature: str, entity_id: str | None, metadata: EntityMetadataMap) -> str:
     """Return a compact text node for the flowchart."""
     label = f"{FEATURE_EMOJI[feature]} {FEATURE_LABELS[feature]}"
-    return f"{label}\n{entity_id or 'geen bron'}"
+    return f"{label}\n{_short_name(entity_id, metadata) if entity_id else 'geen bron'}"
 
 
 def _kpi_cards(entity_ids: EntityMap, metadata: EntityMetadataMap) -> list[DashboardConfig]:
@@ -249,9 +249,11 @@ def _entity_group(entity_id: str, metadata: EntityMetadata) -> str:
     unit = str(metadata.get("unit") or "").lower()
     domain = metadata.get("domain") or entity_id.split(".", 1)[0]
     text = _text(entity_id, metadata)
+    if _price_label(text) is not None:
+        return "price"
     if "soc" in text or unit == "%" or device_class == "battery":
         return "soc"
-    if device_class == "monetary" or any(w in text for w in ("tarief", "price", "cost", "kosten")):
+    if device_class == "monetary" or any(w in text for w in ("tarief", "price", "prijs", "cost", "kosten")):
         return "price"
     if device_class == "power" or unit in {"w", "kw"}:
         return "power"
@@ -323,14 +325,78 @@ def _source(entity_id: str, metadata: EntityMetadata) -> str | None:
     return None
 
 
+def _price_label(text: str) -> str | None:
+    """Infer short tariff/cost labels from entity text."""
+    if not any(word in text for word in ("prijs", "price", "tarief", "cost", "kosten", "volatiliteit", "piek", "beste")):
+        return None
+
+    if "prijsvolatiliteit" in text or "volatiliteit" in text:
+        return "Volatiliteit"
+    if "laagste" in text:
+        return "Laagste vandaag"
+    if "hoogste" in text:
+        return "Hoogste vandaag"
+    if "gemiddelde prijs vandaag" in text or ("gemiddelde" in text and "vandaag" in text):
+        return "Gemiddelde vandaag"
+    if "gemiddelde uurprijs huidig" in text or ("uurprijs" in text and "huidig" in text):
+        return "Uurprijs nu"
+    if "gemiddelde uurprijs volgend" in text or ("uurprijs" in text and "volgend" in text):
+        return "Uurprijs straks"
+    if "huidige prijs incl" in text:
+        return "Prijs nu incl."
+    if "huidige prijs" in text:
+        return "Prijs nu"
+    if "volgende prijs" in text:
+        return "Prijs straks"
+
+    if "beste prijsperiode actief" in text:
+        return "Dalperiode actief"
+    if "beste prijs start over" in text:
+        return "Dalstart over"
+    if "beste prijs start" in text:
+        return "Dalstart"
+    if "beste prijs einde" in text:
+        return "Daleinde"
+    if "beste prijs" in text:
+        return "Dalperiode"
+
+    if "piekprijsperiode actief" in text:
+        return "Piek actief"
+    if "piekprijs start over" in text:
+        return "Piek over"
+    if "piekprijs start" in text:
+        return "Piek start"
+    if "piekprijs einde" in text:
+        return "Piek einde"
+    if "piekprijs" in text:
+        return "Piekperiode"
+
+    if "dynamic energy cost" in text or "cost" in text or "kosten" in text:
+        if any(word in text for word in ("export", "teruglever")):
+            return "kosten teruglevering"
+        if any(word in text for word in ("import", "afname", "netafname")):
+            return "kosten afname"
+        if any(word in text for word in ("laadvermogen", "charging", "laden")):
+            return "laadkosten"
+        return "kosten"
+
+    if "tarief" in text:
+        return "Tarief"
+    if "prijs" in text or "price" in text:
+        return "Prijs"
+    return None
+
+
 def _role(entity_id: str, metadata: EntityMetadata) -> str:
     """Infer compact role label."""
     text = _text(entity_id, metadata)
+    price_label = _price_label(text)
+    if price_label is not None:
+        return price_label
+
     group = _entity_group(entity_id, metadata)
     if group == "soc":
         return "SOC"
-    if group == "price":
-        return "kosten" if "cost" in text else "prijs"
     if group == "power":
         if any(w in text for w in ("charge", "laad", "laden")):
             return "laden"
@@ -363,7 +429,7 @@ def _short_name(entity_id: str, metadata: EntityMetadataMap) -> str:
     item = metadata.get(entity_id, {})
     source = _source(entity_id, item)
     role = _role(entity_id, item)
-    if source:
+    if source and role.lower() not in source.lower():
         return f"{source} {role}"
     return role.capitalize() if len(role) < 20 else role
 
