@@ -17,11 +17,13 @@ from homeassistant.components.lovelace.const import (
     LOVELACE_DATA,
     MODE_STORAGE,
 )
-from homeassistant.const import CONF_MODE
+from homeassistant.const import CONF_MODE, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
 
 from .dashboard import build_dashboard_config
+from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -29,7 +31,7 @@ DASHBOARD_TITLE = "WattBalans Energy"
 DASHBOARD_URL_PATH = "wattbalans-energy"
 DASHBOARD_ICON = "mdi:home-lightning-bolt"
 _MANAGED_MARKER = "wattbalans_energy"
-_MANAGED_VERSION = 7
+_MANAGED_VERSION = 8
 
 ConfiguredEntities = Mapping[str, Sequence[str] | Mapping[str, str]]
 
@@ -48,6 +50,7 @@ def _dashboard_metadata() -> dict[str, Any]:
 
 async def async_ensure_dashboard(
     hass: HomeAssistant,
+    entry_id: str,
     enabled_features: Iterable[str],
     configured_entities: ConfiguredEntities | None = None,
 ) -> bool:
@@ -77,11 +80,12 @@ async def async_ensure_dashboard(
         )
         return False
 
-    entity_map = _entity_map_from_configured_entities(configured_entities or {})
+    source_entity_map = _entity_map_from_configured_entities(configured_entities or {})
+    dashboard_entity_map = _dashboard_entity_map(hass, entry_id, source_entity_map)
     dashboard_config = build_dashboard_config(
         enabled_features,
-        entity_map,
-        _entity_metadata(hass, entity_map),
+        dashboard_entity_map,
+        _entity_metadata(hass, dashboard_entity_map),
     )
     dashboard_config[_MANAGED_MARKER] = {
         "managed": True,
@@ -147,6 +151,37 @@ def _entity_map_from_configured_entities(
             entity_map[feature] = entity_ids
 
     return entity_map
+
+
+def _dashboard_entity_map(
+    hass: HomeAssistant,
+    entry_id: str,
+    source_entity_map: Mapping[str, tuple[str, ...]],
+) -> dict[str, tuple[str, ...]]:
+    """Prefer named WattBalans mirror entities for the generated dashboard."""
+    registry = er.async_get(hass)
+    dashboard_map: dict[str, tuple[str, ...]] = {}
+
+    for feature, source_entity_ids in source_entity_map.items():
+        dashboard_entities: list[str] = []
+        for source_entity_id in source_entity_ids:
+            mirror_entity_id = _mirror_entity_id(registry, entry_id, feature, source_entity_id)
+            dashboard_entities.append(mirror_entity_id or source_entity_id)
+        if dashboard_entities:
+            dashboard_map[feature] = tuple(dashboard_entities)
+
+    return dashboard_map
+
+
+def _mirror_entity_id(
+    registry: er.EntityRegistry,
+    entry_id: str,
+    feature: str,
+    source_entity_id: str,
+) -> str | None:
+    """Return the WattBalans mirror entity ID for a source entity if it exists."""
+    unique_id = f"{entry_id}_{feature}_{source_entity_id.replace('.', '_')}"
+    return registry.async_get_entity_id(Platform.SENSOR, DOMAIN, unique_id)
 
 
 def _entity_metadata(
