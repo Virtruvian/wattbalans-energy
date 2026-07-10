@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.11
+
+- Verbetert de korte labels voor batterij- en accu-entiteiten.
+- Herkent SOC-, capaciteit-, laad- en ontlaadwaarden beter.
+- Maakt batterijnamen compacter, bijvoorbeeld `Laagste SOC`, `Gemiddelde SOC`, `ZinVolt SOC`, `ZinVolt capaciteit`, `Alpha ESS SOC` en `Alpha ESS capaciteit`.
+
 ## 0.1.10
 
 - Verbetert de korte labels voor dynamische prijzen, tarieven en kosten.
